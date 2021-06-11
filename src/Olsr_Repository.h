@@ -6,7 +6,9 @@
 #include "Ipv4_address.h"
 #include "time.h"
 
+#define NS3_SIM
 namespace olsr2_0 {
+
 
 typedef long int Time;
 typedef long int Ipv4Address;
@@ -20,8 +22,8 @@ enum Link_States
 
 enum OlsrMsgType
 {
-	HELLO_MESSAGE,
-	TC_MESSAGE
+	HELLO_MESSAGE = 1,
+	TC_MESSAGE =2
 };
 
 /*1) Local Information Base
@@ -179,6 +181,7 @@ typedef std::vector<OriginatorTuple> OriginatorSet;
 typedef std::vector<LocalAttachedNetworkTuple> LocalAttachedNetworkSet;
 typedef std::vector<RemovedInterfaceAddressTuple> RemovedInterfaceAddressSet;
 typedef std::vector<LinkTuple> LinkSet;
+typedef std::vector<Ipv4Address> Mpr_Set;
 typedef std::vector<TwoHopNeighborTuple> TwoHopNeighborSet;
 typedef std::vector<NeighbourTuple> NeighbourSet;
 typedef std::vector<AdvertisingRemoteRouterTuple> AdvertisingRemoteRouterSet;
