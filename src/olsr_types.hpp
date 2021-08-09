@@ -38,36 +38,56 @@ namespace ns_olsr2_0
 {
 #define M_HELLO_INTERVAL 1                              /* Periodic interval of Hello message */
 #define M_TC_INTERVAL 2                                 /* Periodic interval of Tc message */
-#define M_HELLO_MSG_VALID__TIME (3 * M_HELLO_INTERVAL)    /* Validity Time  of Hello message */
-#define M_TC_MSG_VALID_TIME (3 * M_TC_INTERVAL)           /* Validity Time  of Tc message */
+#define M_HELLO_MSG_VALID__TIME (3 * M_HELLO_INTERVAL)  /* Validity Time  of Hello message */
+#define M_TC_MSG_VALID_TIME (3 * M_TC_INTERVAL)         /* Validity Time  of Tc message */
 #define M_DUP_MSG_HOLD_TIME  30                         /* Validity time of duplicate message */
 #define M_MAX_MSG_SEQ_NUM  65535                        /* Max sequence number of OLSR message */
 
-#define LOST_LINK        0X1    /* Link is lost */
-#define HEARD_LINK       0X2    /* Link is heard */
-#define SYMMETRIC_LINK   0x4    /* Link is symmetric */
+#define M_LOST_LINK        0X1    /* Link is lost */
+#define M_HEARD_LINK       0X2    /* Link is heard */
+#define M_SYMMETRIC_LINK   0x4    /* Link is symmetric */
 
-#define LOST             0X1    /* Link status is lost */
-#define HEARD            0X2    /* Link status is heard */
-#define SYMMETRIC        0x4    /* Link status is symmetric */
+#define M_LOST             0X1    /* Link status is lost */
+#define M_HEARD            0X2    /* Link status is heard */
+#define M_SYMMETRIC        0x4    /* Link status is symmetric */
 
-#define NOT_A_NEIGHBOR     0x0            /* Not a neighbor */
-#define SYMMETRIC_NEIGHBOR   0x1        /* Not a neighbor */
-#define ROUTING_MPR      0x2            /* neighbor is a routing mpr */
-#define FLOODING_MPR     0x3            /* neighbor is flooding mpr */
-#define MPR_FLOOD_ROUTE  0x4            /* neighbor is both flooding and routing mpr */
+#define M_NOT_A_NEIGHBOR       0x0     /* Not a neighbor */
+#define M_ROUTING_MPR          0x1     /* neighbor is a routing mpr */
+#define M_FLOODING_MPR     	   0x2     /* neighbor is flooding mpr */
+#define M_MPR_FLOOD_ROUTE  	   0x3    /* neighbor is both flooding and routing mpr */
+#define M_SYMMETRIC_NEIGHBOR   0x4     /* Symmetric neighbor */
 
+#define M_MAX_OLSR_BUF_SIZE    512     /* Maximum buffer size of a OLSR message */
+#define M_UNKNOWN_VALUE  	   0xFF    /* link metric value which is unknown  */
 
-#define MAX_OLSR_BUF_SIZE   512     /* Maximum buffer size of a OLSR message */
-#define UNKNOWN_METRIC  0xFF    /* link metric value which is unknown  */
+#define M_ZERO 			   0x0	  /* value is Zero */
+#define M_ONE			   0x1    /* value is One */
+#define M_TWO			   0x2    /* value id Two */
+
 
 typedef long long int Time;
 
+/*
+ * Status of the next hop route
+ */
+typedef enum
+{
+  ROUTE_NOT_FOUND = 0X0,
+  ROUTE_FOUND = 0X1
+}E_ROUTE_STATUS;
+
+/*
+ * Destination node address types
+ */
+typedef enum
+{
+  UNICAST_ADDR = 0X1,
+  MULTICAST_ADDR = 0X2
+}E_DEST_ADDR_TYPE;
 
 /**
  * Address type of mpr selectors
  */
-
 typedef enum
 {
   ROUTABLE_ORIG = 0X1,
@@ -83,7 +103,7 @@ typedef enum
 typedef enum
 {
     HELLO_MESSAGE = 0x1,      /* Hello Message */
-    TC_MESSAGE = 0x2           /* Topology control Message */
+    TC_MESSAGE = 0x2          /* Topology control Message */
 }E_OLSR_MSG_TYPE;
 
 /**
@@ -96,12 +116,19 @@ typedef enum
   NODE_ID_COMMON = 0X2
 }E_ADDRESS_BLOCK_FLAGS;
 
+/**
+ * this holds the type of olsr instance
+ */
 typedef enum
 {
   NORMAL_NODE_INSTANCE = 0X0,
   LEADER_NODE_INSTANCE = 0X1
 }E_OLSR_INSTANCE;
 
+/**
+ * this holds the type of Willingness
+ * that a node can have
+ */
 typedef enum
 {
   WILL_NEVER = 0X0,
@@ -112,7 +139,7 @@ typedef enum
 }E_WILLINGNESS;
 
 /**
- * Node address format
+ * Holds the 2 types of node willingness
  */
   typedef struct
   {
@@ -120,6 +147,9 @@ typedef enum
     E_WILLINGNESS flood_will:4;
   }T_WILL_BASE;
 
+  /**
+   * Holds the overall willingness
+   */
   typedef union
   {
     T_UINT8 willingness;
@@ -161,6 +191,13 @@ typedef enum
     T_ADDR_BASE field;
   }T_ADDR;
 
+  /* Checks if given 2 addresses are same*/
+  static inline T_BOOL
+  operator == (T_ADDR& addr_a, const T_ADDR& addr_b)
+  {
+    return(addr_a.field.m_nid == addr_b.field.m_nid);
+  }
+
 #endif
 
 /**
@@ -172,6 +209,7 @@ typedef struct
   T_UINT8 node_id;   /*Node Id in an orthogonal net*/
 }T_NODE_ADDRESS;
 
+/* Checks if given 2 addresses are same*/
 static inline T_BOOL
 operator == (const T_NODE_ADDRESS& addr_a, const T_NODE_ADDRESS& addr_b)
 {
@@ -179,7 +217,7 @@ operator == (const T_NODE_ADDRESS& addr_a, const T_NODE_ADDRESS& addr_b)
 }
 
 /**
- * Leader address block shared in hello message
+ * Holds Leader address tuple
  */
 typedef struct
 {
@@ -196,14 +234,14 @@ typedef struct
  */
 typedef struct
 {
-	T_FLOAT l_in_metric;		                            /* Incoming data-link metric from 1-hop neighbor node to local node*/
-	T_FLOAT l_out_metric;		                            /* Outgoing data-link metric from local node to 1-hop neighbor node */
-	T_BOOL l_mpr_selector;	                                /* True if the 1-hop neighbor selected this local node as flooding MPR */
-	T_NODE_ADDRESS  l_neighbor_iface_addr;                  /* The address of that interface of the 1-hop neighbor */
-	Time l_heard_time;		                                /* the validity time of this incoming link */
-	Time l_sym_time;		                                /* Validity time of this symmetric link */
-	Time l_time;			                                /* Validity time of this link */
-	T_UINT8 l_status;                                       /* Status of this link */
+	T_FLOAT l_in_metric;		               /* Incoming data-link metric from 1-hop neighbor node to local node*/
+	T_FLOAT l_out_metric;		               /* Outgoing data-link metric from local node to 1-hop neighbor node */
+	T_BOOL l_mpr_selector;	                   /* True if the 1-hop neighbor selected this local node as flooding MPR */
+	T_NODE_ADDRESS  l_neighbor_iface_addr;     /* The address of that interface of the 1-hop neighbor */
+	Time l_heard_time;		                   /* the validity time of this incoming link */
+	Time l_sym_time;		                   /* Validity time of this symmetric link */
+	Time l_time;			                   /* Validity time of this link */
+	T_UINT8 l_status;                          /* Status of this link */
 }T_LINK_TUPLE;
 
 /**
@@ -211,11 +249,11 @@ typedef struct
  */
 typedef struct
 {
-	T_FLOAT n2_in_metric;	                                /* Incoming neighbor metric from 1-hop neighbor node to local node*/
-	T_FLOAT n2_out_metric;                                  /* Outgoing neighbor metric from local node to 1-hop neighbor node */
+	T_FLOAT n2_in_metric;	                   /* Incoming neighbor metric from 1-hop neighbor node to local node*/
+	T_FLOAT n2_out_metric;                     /* Outgoing neighbor metric from local node to 1-hop neighbor node */
 	T_NODE_ADDRESS n2_neighbor_iface_addr;     /* The address of that interface of 1-hop neighbor which has a symmetric connection to this 2-hop neighbor */
-	T_NODE_ADDRESS n2_2hop_addr;	                        /* Ip address of the 2-hop neighbor */
-	Time n2_time;		                                    /* Validity time of this 2-hop connection */
+	T_NODE_ADDRESS n2_2hop_addr;	           /* Ip address of the 2-hop neighbor */
+	Time n2_time;		                       /* Validity time of this 2-hop connection */
 }T_TWO_HOP_NEIGHBOUR_TUPLE;
 
 /*------------------------------------------------------------------
@@ -227,7 +265,7 @@ typedef struct
  */
 typedef struct
 {
-	T_NODE_ADDRESS n_neighbor_addr;	                        /* Address of the 1-hop neighbor */
+	T_NODE_ADDRESS n_neighbor_addr;	           /* Address of the 1-hop neighbor */
 	T_FLOAT n_in_metric;	                                /* Neighbor In metric */
 	T_FLOAT n_out_metric;	                                /* Neighbor out metric */
 	U_WILLINGNESS n_willingness;                                  /* bits 0-3 - Flooding Will and bits 4-7 Routing Willingness */
@@ -265,6 +303,19 @@ typedef struct
 }T_ROUTER_TOPOLOGY_TUPLE;
 
 /**
+ * holds information about the attached network
+ */
+typedef struct
+{
+	T_NODE_ADDRESS an_orig_addr;	                            /* Originator address of the TC message */
+	T_NODE_ADDRESS an_net_addr;	                            /* Attached network address connected to by this TC message generator*/
+	T_UINT16 an_seq_number;		                            /* Advertised neighbor sequence number */
+	T_UINT8 an_dist;		                                /* Distance to the attached network */
+	Time an_time;			                                /* Validity time of this tuple */
+	T_FLOAT an_metric;		                                /* Out metric between the TC message originator and the attached network*/
+}T_ATTACHED_NETWORK_TUPLE;
+
+/**
  * holds the information about the route to a destination in the network
  */
 typedef struct
@@ -286,9 +337,9 @@ typedef struct
 
 typedef struct
 {
-    T_NODE_ADDRESS one_hop_neighb_addr;
-    U_WILLINGNESS n_willingness;
-    float in_out_metric;
+    T_NODE_ADDRESS one_hop_neighb_addr;	/* Symmetric 1-Hop neighbor address */
+    U_WILLINGNESS n_willingness;        /* 1-Hop neighbor's willingness */
+    float in_out_metric;				/* Link Metric(In Link/Out Link) between the 1-Hop neighbor */
 }T_ALLOWED_ONE_HOP_TUPLE; /* Used for both Flooding and Routing MPR calculation */
 
 /**
@@ -297,9 +348,9 @@ typedef struct
 
 typedef struct
 {
-    T_NODE_ADDRESS two_hop_neighb_addr;
-    T_NODE_ADDRESS one_hop_neighb_addr;
-    float in_out_metric;
+    T_NODE_ADDRESS two_hop_neighb_addr; /* Symmetric 2-Hop neighbor address */
+    T_NODE_ADDRESS one_hop_neighb_addr; /* Symmetric 1-Hop neighbor address */
+    float in_out_metric;				/* Link Metric(In Link/Out Link) between the 2-Hop neighbor */
 }T_ALLOWED_TWO_HOP_TUPLE; /* Used for both Flooding and Routing MPR calculation */
 
 /**
@@ -338,7 +389,7 @@ typedef struct
 
 
 /**
- *holds N1 set and N2 set
+ * A Neighbor graph that holds N1 set and N2 set
  */
 
 typedef struct
@@ -349,7 +400,8 @@ typedef struct
 
 
 /**
- *holds source and destination address with their Out link
+ * Network Link that
+ * holds source and destination address with their Out link
  */
 
 typedef struct
@@ -361,7 +413,7 @@ typedef struct
 
 /**
  *Network topology graph holding
- *Network Link of 1-hop, 2-Hop and
+ *Network Link of 1-hop and
  * Topology set
  */
 
@@ -423,6 +475,8 @@ typedef std::vector<T_NEIGHBOUR_TUPLE> NeighbourSet;	                           
 
 typedef std::vector<T_ADVERTISING_REMOTE_ROUTER_TUPLE> AdvertisingRemoteRouterSet;	    /*  Advertising remote router address Set */
 
+typedef std::vector<T_ATTACHED_NETWORK_TUPLE> AttachedNetworkSet;	    				/*  Attached Network address Set */
+
 typedef std::vector<T_ROUTER_TOPOLOGY_TUPLE> RouterTopologySet;	                        /*  Router topology address Set */
 
 typedef std::vector<T_PROCESSED_MSG_TUPLE> ProcessedMsgSet;	                            /*  Processed  message Set */
@@ -432,7 +486,7 @@ typedef std::vector<T_FORWARDED_MSG_TUPLE> ForwardedMsgSet;	                    
 typedef std::vector <T_ROUTING_TABLE_ENTRY> RoutingSet;                                 /*  Routing table Set */
 
 T_BOOL get_is_leader(void);
-Time get_cur_time();
+Time get_ns();
 
 /**
  * This function asserts the code
@@ -444,7 +498,7 @@ static inline void OLSR_ASSERT(T_BOOL condition)
   if(condition != true)
     {
       std::cout << "Stuck in Assert" << std::endl;
-      while(1)
+      while(M_ONE)
         {
             ;
         }

@@ -33,9 +33,46 @@ namespace ns_olsr2_0
    * @return    None.
    * @note      None.
   ********************************************************************/
-  T_ADDR* get_routing_destination_address(T_ADDR* Csrc, T_ADDR* Dest, T_ADDR* RDest)
+  E_ROUTE_STATUS
+  C_OLSR::get_routing_destination_address(const T_ADDR& Csrc, const T_ADDR& Dest, T_ADDR& RDest)
   {
-    return RDest;
+    T_NODE_ADDRESS r_src_addr;
+    E_ROUTE_STATUS route_status = ROUTE_NOT_FOUND;
+
+    r_src_addr.net_id = Csrc.field.m_oid;
+    r_src_addr.node_id = Csrc.field.m_nid;
+
+    const T_LINK_TUPLE *link_tuple = m_state.find_sym_link_tuple(r_src_addr);
+
+    if(link_tuple != NULL)
+      {
+        E_DEST_ADDR_TYPE dest_addr_type = check_address_type(Dest);
+        switch(dest_addr_type)
+        {
+          case UNICAST_ADDR:
+            route_status = m_state.find_next_routing_hop_addr(&Dest, &RDest);
+            break;
+
+          case MULTICAST_ADDR:
+            if(link_tuple->l_mpr_selector == true)
+              {
+                route_status = ROUTE_FOUND;
+                RDest = Dest;
+              }
+            break;
+
+        }
+
+      }
+
+    else
+      {
+        route_status = ROUTE_NOT_FOUND;
+      }
+
+
+
+    return route_status;
 
   }
 
@@ -78,8 +115,8 @@ namespace ns_olsr2_0
  {
    T_ADDR loc_addr;
 
-   loc_addr.field.m_mux_ubm = 0;
-   loc_addr.field.reserved = 0;
+   loc_addr.field.m_mux_ubm = M_ZERO;
+   loc_addr.field.reserved = M_ZERO;
    loc_addr.field.m_oid = 10;
    loc_addr.field.m_nid = 10;
 
@@ -95,7 +132,7 @@ namespace ns_olsr2_0
    * @note      None.
   ********************************************************************/
 
- T_UINT8 C_OLSR::get_willingness(void)
+ T_UINT8 C_OLSR::get_node_willingness(void)
  {
    return 0x33;  /* 0011 0011 = Willingness HIGH is set to both Routing and Flooding */
  }
@@ -109,7 +146,7 @@ namespace ns_olsr2_0
   ********************************************************************/
  float C_OLSR::get_in_link_metric(void)
  {
-   return 1.0;
+   return M_ONE;
  }
 
 #endif

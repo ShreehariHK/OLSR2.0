@@ -76,7 +76,7 @@ namespace ns_olsr2_0
    * @function  set_packet_type
    * @brief     This function sets the packet type.
    * @param     seqnum.
-   * @return    m_packet_length.
+   * @return    None.
    * @note      None.
   ********************************************************************/
   void C_PACKET_HEADER::set_packet_type (T_UINT16 seqnum)
@@ -87,8 +87,8 @@ namespace ns_olsr2_0
   /********************************************************************
    * @function  get_packet_type
    * @brief     This function returns the packet type.
-   * @param     seqnum.
-   * @return    m_packet_sequence_number.
+   * @param     None.
+   * @return    m_packet_type.
    * @note      None.
   ********************************************************************/
   T_UINT16 C_PACKET_HEADER::get_packet_type () const
@@ -96,7 +96,6 @@ namespace ns_olsr2_0
       return m_packet_type;
   }
 
-#ifdef COMMENT_SECTION
   /********************************************************************
    * @function  C_MESSAGE_HEADER
    * @brief     This function is the constructor of C_MESSAGE_HEADER.
@@ -120,7 +119,6 @@ namespace ns_olsr2_0
   {
 
   }
-#endif
 
   /********************************************************************
    * @function  set_message_type
@@ -193,8 +191,8 @@ namespace ns_olsr2_0
   /********************************************************************
    * @function  get_interval_time
    * @brief     This function sets the interval time.
-   * @param     time.
-   * @return    None.
+   * @param     None.
+   * @return    m_interval_time.
    * @note      None.
   ********************************************************************/
   Time C_MESSAGE_HEADER::get_interval_time () const
@@ -327,11 +325,13 @@ namespace ns_olsr2_0
    * @brief     Checks if the received message type is HELLO and
    *            returns the message content.
    * @param     None.
-   * @return    hello.
+   * @return    hello message.
    * @note      None.
   ********************************************************************/
   const C_MESSAGE_HEADER::T_HELLO& C_MESSAGE_HEADER::get_hello (void) const
   {
+	  /* Checks if the received message is Hello.
+	   * If true then returns the hello message*/
     if(m_message_type == HELLO_MESSAGE)
       {
         return m_message.hello;
@@ -343,11 +343,13 @@ namespace ns_olsr2_0
    * @brief     Checks if the message type is TC and
    *            returns the message content.
    * @param     None.
-   * @return    tc.
+   * @return    tc message.
    * @note      None.
   ********************************************************************/
   const C_MESSAGE_HEADER::T_TC& C_MESSAGE_HEADER::get_tc() const
   {
+   /* Checks if the received message is Tc.
+    * If true then returns the Tc message*/
    if (m_message_type == TC_MESSAGE)
    {
      return m_message.tc;
@@ -357,14 +359,16 @@ namespace ns_olsr2_0
 
   /********************************************************************
    * @function  get_hello
-   * @brief     Checks if the message type is HELLO and returns the message content.
+   * @brief     Returns the reference of Hello message.
    * @param     None.
-   * @return    hello.
+   * @return    Reference of hello message.
    * @note      None.
   ********************************************************************/
   C_MESSAGE_HEADER::T_HELLO& C_MESSAGE_HEADER::get_hello (void)
   {
-    if (m_message_type == 0)
+	/*Checks if the message type is Hello.
+	 * If true then returns the hello message*/
+    if (m_message_type == M_ZERO)
     {
         m_message_type = HELLO_MESSAGE;
     }
@@ -377,14 +381,16 @@ namespace ns_olsr2_0
 
   /********************************************************************
    * @function  get_tc
-   * @brief     Checks if the message type is TC and returns the message content.
+   * @brief     Returns the reference of Tc message.
    * @param     None.
-   * @return    tc.
+   * @return    Reference of hello message.
    * @note      None.
   ********************************************************************/
   C_MESSAGE_HEADER::T_TC& C_MESSAGE_HEADER::get_tc()
   {
-   if (m_message_type == 0)
+   /*Checks if the message type is Tc.
+	* If true then returns the Tc message*/
+   if (m_message_type == M_ZERO)
    {
        m_message_type = TC_MESSAGE;
    }
@@ -398,34 +404,46 @@ namespace ns_olsr2_0
 
   /********************************************************************
    * @function  set_message_attributes
-   * @brief     Checks if the message type is TC and returns the message content.
-   * @param     None.
-   * @return    tc.
+   * @brief     Set the following common message attributes
+   * 			i) Msg type, ii) Msg originator address, iii) Msg TTL,
+   * 			iv) Msg Hop-count, v) Msg sequence number,
+   * 			vi) Msg validity time, vii) Msg interval time,\.
+   * @param     [1] node_address - Address of the node.
+   * 			[2] msg_type - Type of the message.
+   * 			[3] msg_seq_num - Message sequence number.
+   * @return    None.
    * @note      None.
   ********************************************************************/
 
   void C_MESSAGE_HEADER::set_message_attributes(T_NODE_ADDRESS node_address, E_OLSR_MSG_TYPE msg_type, T_UINT16 msg_seq_num)
   {
-    set_message_type(msg_type);
+    this->set_message_type(msg_type);
 
-    set_originator_address(node_address);
+    this->set_originator_address(node_address);
 
+    /* If the message type is Hello, then
+     * Set Time to Live as 1,
+     * 40 otherwise */
     if(msg_type == E_OLSR_MSG_TYPE::HELLO_MESSAGE)
       {
-        set_time_to_live(1);
+        this->set_time_to_live(M_ONE);
+        this->set_validity_time(M_HELLO_MSG_VALID__TIME);
+        this->set_interval_time(M_HELLO_INTERVAL);
+
       }
     else
       {
-        set_time_to_live(40);
+        this->set_time_to_live(40);
+        this->set_validity_time(M_TC_MSG_VALID_TIME);
+        this->set_interval_time(M_TC_INTERVAL);
       }
 
-    set_hop_count(0);
-
+    this->set_hop_count(M_ZERO);
     set_message_sequence_number(msg_seq_num);
 
-    set_validity_time(M_HELLO_MSG_VALID__TIME);
 
-    set_interval_time(M_HELLO_INTERVAL);
+
+
 
   }
 
@@ -433,11 +451,12 @@ namespace ns_olsr2_0
    * @function  get_hello_msg_size
    * @brief     Finds the message hello size and returns.
    * @param     None.
-   * @return    tc.
+   * @return    Hello message size.
    * @note      None.
   ********************************************************************/
   T_UINT16 C_MESSAGE_HEADER::T_HELLO::get_hello_msg_size()
     {
+
       T_UINT16 size = this->neighbor_set.size();
       return (size * 6);
 
@@ -447,12 +466,12 @@ namespace ns_olsr2_0
    * @function  get_tc_msg_size
    * @brief     Finds the tc message size and returns.
    * @param     None.
-   * @return    tc.
+   * @return    Tc message size.
    * @note      None.
   ********************************************************************/
   T_UINT16 C_MESSAGE_HEADER::T_TC::get_tc_msg_size()
     {
-      T_UINT16 size = 0;
+      T_UINT16 size = M_ZERO;
 
       for(std::vector<T_TC_ADDRESS_BLOCK>::const_iterator it = this->tc_addr_set.begin(); it != tc_addr_set.end(); it++)
         {
@@ -467,20 +486,22 @@ namespace ns_olsr2_0
    * @function  get_msg_size
    * @brief     Finds the message OLSR message size and returns.
    * @param     None.
-   * @return    tc.
+   * @return    size.
    * @note      None.
   ********************************************************************/
   T_UINT16 C_MESSAGE_HEADER::get_msg_size()
   {
-    T_UINT16 size = 0;
+    T_UINT16 size = M_ZERO;
 
-
+    /* Checks the type of the message */
     switch(m_message_type)
     {
+      /* If its a Hello message then adds hello message size with Hello message header length*/
       case HELLO_MESSAGE:
         size += (this->m_message.hello.get_hello_msg_size() + M_HELLO_MSG_HEADER_LEN);
         break;
 
+       /* If its a Hello message then adds Tc message size with Tc message header length*/
       case TC_MESSAGE:
         size += (this->m_message.tc.get_tc_msg_size() + M_TC_MSG_HEADER_LEN);
         break;

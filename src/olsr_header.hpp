@@ -54,9 +54,10 @@ public:
   T_UINT16 get_packet_type () const;
 
 private:
-  T_UINT16 m_packet_length;           /* The packet length */
-  T_UINT16 m_packet_type;  /* The packet type */
+  T_UINT16 m_packet_length; /* The packet length */
+  T_UINT16 m_packet_type;   /* The packet type */
 
+  /* A buffer to store serialised OLSR message */
   std::array<T_UINT8, 512> serialised_buffer;
 
 };
@@ -65,7 +66,7 @@ class C_MESSAGE_HEADER
 {
 	public:
 
-#ifdef COMMENT_SECTION
+#ifndef COMMENT_SECTION
 	C_MESSAGE_HEADER ();              /* Constructor */
 	#ifdef M_NS3_SIM
 		virtual ~C_MESSAGE_HEADER (); /* Destructor */
@@ -131,17 +132,22 @@ class C_MESSAGE_HEADER
 		T_UINT8 m_time_to_live;            	    /* Time to live of a message of current OLSR instance */
 		T_UINT8 m_hop_count;                    /* Hop count of a message of current OLSR instance */
 		T_UINT16 m_message_sequence_number;     /* Sequence number of a message of current OLSR instance */
-		T_UINT8 m_validity_time;                   /* Validity time of a message of current OLSR instance */
-		T_UINT8 m_interval_time;                   /* Interval time of a message of current OLSR instance */
+		T_UINT8 m_validity_time;                /* Validity time of a message of current OLSR instance */
+		T_UINT8 m_interval_time;                /* Interval time of a message of current OLSR instance */
 
 	public:
 
+		/* A queue to hold OLSR messages */
 		typedef std::vector<C_MESSAGE_HEADER> OlsrMsgList;
 
+		/**
+		 * It holds Common fields required
+		 * for Hello and TC messages
+		 */
 		typedef union
 		{
-		  U_NEIGHBOR_LINK       link_state;             /* Link state */
-		  T_UINT8               hop_count;              /* Hop count - ATTACHED  */
+		  U_NEIGHBOR_LINK       link_state;    /* Link state */
+		  T_UINT8               hop_count;     /* Hop count - ATTACHED  */
 		}U_COMMON_FIELD;
 
 		/**
@@ -151,7 +157,7 @@ class C_MESSAGE_HEADER
 		{
 		    T_UINT8 unique_id;                 /* net id or Node id*/
 		    U_COMMON_FIELD common_field;       /* Link state or neighbor address type */
-			std::array<float,2> metric;        /* metric[1] - In link metric and metric[0] - out link metric */
+			std::array<float,M_TWO> metric;    /* metric[M_ONE] - In link metric and metric[M_ZERO] - out link metric */
 		}T_GENERIC_ADDR_BLOCK;
 
 		/*------------------------------------------------------------------
@@ -163,26 +169,31 @@ class C_MESSAGE_HEADER
 		 */
 		typedef struct
 		{
-		    U_WILLINGNESS node_willingness;                          /* Node's willingness for Routing and Flooding*/
-		    T_LEADER_TUPLE leader_info;                              /* Info about Leader of the network */
-		    E_ADDRESS_BLOCK_FLAGS abf;                               /* Address block Flags */
-            T_UINT8 common_id;                                       /* Orthogonal network address/ Node address */
-            std::vector<T_GENERIC_ADDR_BLOCK> neighbor_set;          /* Address TLVs of Hello message */
+		    U_WILLINGNESS node_willingness;                  /* Node's willingness for Routing and Flooding*/
+		    T_LEADER_TUPLE leader_info;                      /* Info about Leader of the network */
+		    E_ADDRESS_BLOCK_FLAGS abf;                       /* Address block Flags */
+            T_UINT8 common_id;                               /* Orthogonal network address/ Node address */
+            std::vector<T_GENERIC_ADDR_BLOCK> neighbor_set;  /* Address TLVs of Hello message */
 
             /* Finds  the size of the hello message */
             T_UINT16 get_hello_msg_size();
 		}T_HELLO;
 
+
 		/*------------------------------------------------------------------
 		 Tc Message
 		------------------------------------------------------------------*/
+		/**
+		 * It stores Common address block
+		 * of TC message
+		 */
 
 		typedef struct
 		{
-		  E_TC_ADDRESS_TYPE tc_msg_type;
-		  E_ADDRESS_BLOCK_FLAGS abf;                                  /* Address block Flags */
-          T_UINT8 common_id;                                          /* Orthogonal network address/ Node address */
-          std::vector<T_GENERIC_ADDR_BLOCK> network_info;             /* Address TLVs of TC message */
+		  E_TC_ADDRESS_TYPE tc_msg_type;					 /* Info about type of data carried out by TC message*/
+		  E_ADDRESS_BLOCK_FLAGS abf;                         /* Address block Flags */
+          T_UINT8 common_id;                                 /* Orthogonal network address/ Node address */
+          std::vector<T_GENERIC_ADDR_BLOCK> network_info;    /* Address TLVs of TC message */
 		}T_TC_ADDRESS_BLOCK;
 
 
@@ -191,8 +202,8 @@ class C_MESSAGE_HEADER
 		 */
 		typedef struct
 		{
-		    T_UINT16 ansn;                                             /* Advertised neighbor sequence number*/
-		    std::vector<T_TC_ADDRESS_BLOCK> tc_addr_set;
+		    T_UINT16 ansn;                                   /* Advertised neighbor sequence number*/
+		    std::vector<T_TC_ADDRESS_BLOCK> tc_addr_set;	 /* Stores a set of address blocks*/
 
 		    /* Finds  the size of the tc message */
 		    T_UINT16 get_tc_msg_size();
@@ -209,15 +220,15 @@ class C_MESSAGE_HEADER
             T_UINT8 m_time_to_live;                 /* Time to live of a message of current OLSR instance */
             T_UINT8 m_hop_count;                    /* Hop count of a message of current OLSR instance */
             T_UINT16 m_message_sequence_number;     /* Sequence number of a message of current OLSR instance */
-            T_UINT8 m_validity_time;                   /* Validity time of a message of current OLSR instance */
-            T_UINT8 m_interval_time;                   /* Interval time of a message of current OLSR instance */
-			T_HELLO hello;      /* Hello message */
-			T_TC tc;            /* Topology control message */
+            T_UINT8 m_validity_time;                /* Validity time of a message of current OLSR instance */
+            T_UINT8 m_interval_time;                /* Interval time of a message of current OLSR instance */
+			T_HELLO hello;     					    /* Hello message */
+			T_TC tc;            					/* Topology control message */
 		}T_MESSAGE;
 
 	private:
 
-		T_MESSAGE m_message;
+		T_MESSAGE m_message;	/* Variable containing Hello and Tc messages*/
 
 
 	public:
