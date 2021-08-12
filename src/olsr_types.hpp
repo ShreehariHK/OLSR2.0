@@ -24,6 +24,8 @@
 #define OLSR_TYPES_HPP_
 #include <iostream>
 #include <stdint.h>
+#include <map>
+#include <set>
 #include <vector>
 #include <array>
 #include "time.h"	        /* Include file for Time functionality */
@@ -216,6 +218,20 @@ operator == (const T_NODE_ADDRESS& addr_a, const T_NODE_ADDRESS& addr_b)
   return((addr_a.net_id == addr_b.net_id) and (addr_a.node_id == addr_b.node_id));
 }
 
+/* Checks if given 2 addresses are notsame*/
+static inline T_BOOL
+operator != (const T_NODE_ADDRESS& addr_a, const T_NODE_ADDRESS& addr_b)
+{
+  return((addr_a.net_id != addr_b.net_id) or (addr_a.node_id != addr_b.node_id));
+}
+
+/* Checks if given 1st address is less than 2nd address */
+static inline T_BOOL
+operator < (const T_NODE_ADDRESS& addr_a, const T_NODE_ADDRESS& addr_b)
+{
+  return((addr_a.net_id < addr_b.net_id) and (addr_a.node_id < addr_b.node_id));
+}
+
 /**
  * Holds Leader address tuple
  */
@@ -325,6 +341,7 @@ typedef struct
 	T_NODE_ADDRESS r_local_iface_addr;                         /* Interface address of the local node */
 	T_UINT8 r_dist; 		                                /* Distance to the destination node */
 	T_FLOAT r_metric;		                                /* Out metric between the local node and the destination node*/
+	T_BOOL r_used;                                          /* A flag used to check whether this tuple used to findout other destinations */
 }T_ROUTING_TABLE_ENTRY;
 
 /*------------------------------------------------------------------
@@ -358,11 +375,17 @@ typedef struct
  */
 typedef struct
 {
-    T_NODE_ADDRESS two_hop_neighb_addr;     /* Symmetric two_hop neighbor address*/
     float d2;                              /* metric between one_hop and two_hop neighbors */
     float d;                               /* d1 + d2 */
 
 }T_MATRIX;
+
+/* Checks if given 1st address is less than 2nd address */
+static inline T_BOOL
+operator < (const T_MATRIX& matrix_a, const T_MATRIX& matrix_b)
+{
+  return(matrix_a.d < matrix_b.d);
+}
 
 /**
  *holds the information of symmetric 1-hop  neighbors,
@@ -372,10 +395,18 @@ typedef struct
 typedef struct
 {
     T_NODE_ADDRESS one_hop_neighb_addr;         /* Symmetric one_hop neighbor address*/
-    U_WILLINGNESS neighb_will;          /* Neighbor Willingness */
-    float d1;                           /* metric between current node and one_hop neighbors */
-    std::vector<T_MATRIX> matrix_set;   /* metrics between this one-hop and two-hop neighbors  connected by it*/
+    U_WILLINGNESS neighb_will;                  /* Neighbor Willingness */
+    float d1;                                   /* metric between current node and one_hop neighbors */
+    std::map<T_NODE_ADDRESS, T_MATRIX> matrix_set;   /* metrics between this one-hop and two-hop neighbors  connected by it*/
+    T_UINT8 degree;                             /* The number of 2-Hop nodes connected by this 1-Hop neighbor */
 }T_N1;
+
+/* Checks if given 1st address is less than 2nd address */
+static inline T_BOOL
+operator < (const T_N1& var_a, const T_N1& var_b)
+{
+  return(var_a.degree < var_b.degree);
+}
 
 /**
  *holds the information of symmetric 2-hop  neighbor,
@@ -383,6 +414,7 @@ typedef struct
  */
 typedef struct
 {
+    T_NODE_ADDRESS one_hop_neighb_addr; /* Symmetric one_hop neighbor address*/
     T_NODE_ADDRESS two_hop_neighb_addr; /* Symmetric two_hop neighbor address*/
     float d1;   /* metric between current node and a node who is both one hop and two hop neighbor */
 }T_N2;
@@ -465,9 +497,11 @@ typedef struct
 
 typedef std::vector<T_LINK_TUPLE> LinkSet;                                              /* Link Set */
 
-typedef std::vector<T_NODE_ADDRESS> RoutingMprSet;                                         /* Routing MPR address Set */
+typedef std::set<T_NODE_ADDRESS> MprSet;                                                /* MPR Set */
 
-typedef std::vector<T_NODE_ADDRESS> FloodingMprSet;                                        /* Flooding MPR address  Set */
+typedef std::vector<T_NODE_ADDRESS> RoutingMprSet;                                      /* Routing MPR address Set */
+
+typedef std::vector<T_NODE_ADDRESS> FloodingMprSet;                                     /* Flooding MPR address  Set */
 
 typedef std::vector<T_TWO_HOP_NEIGHBOUR_TUPLE> TwoHopNeighborSet;                       /* 2-hop neighbor address  Set */
 

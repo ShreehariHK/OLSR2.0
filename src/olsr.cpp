@@ -788,6 +788,18 @@ template <typename T>
           {
             remote_router_address.net_id = topology_iter->unique_id;
           }
+
+        /* If the Remote router's address mentioned in TC message is this node's address only,
+         * then skip this iteration.
+         * (the instance type is Normal and tc messages' neighbors' unique id is matching
+         * with this node's Node Id) or
+         * (the instance type is Leader and tc messages' neighbors' unique id is matching
+         * with this node's Net Id) */
+        if (((this->get_instance_type () == NORMAL_NODE_INSTANCE) and (topology_iter->unique_id == m_node_address.node_id))
+            || ((this->get_instance_type () == LEADER_NODE_INSTANCE) and (topology_iter->unique_id == m_node_address.net_id)))
+          {
+              continue;
+          }
         /* Checks if the Router topology tuple is already present for the
          * Advertized router*/
         T_ROUTER_TOPOLOGY_TUPLE* router_topology_tuple = m_state.find_router_topology_tuple (
@@ -874,35 +886,40 @@ template <typename T>
                  */
                 if(link_tuple.l_neighbor_iface_addr == neighb_tuple.n_neighbor_addr)
                   {
-                	/* If the neighbor is both Routing and Flooding MPR then
-                	 * set the neighbor type as both Flooding and Routing MPR*/
-                    if((neighb_tuple.n_routing_mpr == true) and (neighb_tuple.n_flooding_mpr == true))
-                    {
-                        nbr_addr_block.common_field.link_state.type_fields.nbr_type = M_MPR_FLOOD_ROUTE;
-                    }
-                    /* If the neighbor is a Routing MPR then
-                     * set the neighbor type as Routing MPR*/
-                    else if(neighb_tuple.n_routing_mpr == true)
-                    {
-                        nbr_addr_block.common_field.link_state.type_fields.nbr_type = M_ROUTING_MPR;
-                    }
-                    /* If the neighbor is a Flooding MPR then
-                     * set the neighbor type as Flooding MPR*/
-                    else if(neighb_tuple.n_flooding_mpr == true)
-                    {
-                        nbr_addr_block.common_field.link_state.type_fields.nbr_type = M_FLOODING_MPR;
-                    }
                     /* If the neighbor is a symmetric one then
-                     * set nbr_type as Symmetric */
-                    else if(neighb_tuple.n_symmetric == true)
-                    {
-                        nbr_addr_block.common_field.link_state.type_fields.nbr_type = M_SYMMETRIC_NEIGHBOR;
-                    }
+                     * process further */
+                    if(neighb_tuple.n_symmetric == true)
+                      {
+                        /* If the neighbor is both Routing and Flooding MPR then
+                         * set the neighbor type as both Flooding and Routing MPR*/
+                        if((neighb_tuple.n_routing_mpr == true) and (neighb_tuple.n_flooding_mpr == true))
+                        {
+                            nbr_addr_block.common_field.link_state.type_fields.nbr_type = M_MPR_FLOOD_ROUTE;
+                        }
+                        /* If the neighbor is a Routing MPR then
+                         * set the neighbor type as Routing MPR*/
+                        else if(neighb_tuple.n_routing_mpr == true)
+                        {
+                            nbr_addr_block.common_field.link_state.type_fields.nbr_type = M_ROUTING_MPR;
+                        }
+                        /* If the neighbor is a Flooding MPR then
+                         * set the neighbor type as Flooding MPR*/
+                        else if(neighb_tuple.n_flooding_mpr == true)
+                        {
+                            nbr_addr_block.common_field.link_state.type_fields.nbr_type = M_FLOODING_MPR;
+                        }
+                        /* If the neighbor type is none of the above then
+                         * set nbr_type as Symmetric */
+                        else
+                        {
+                            nbr_addr_block.common_field.link_state.type_fields.nbr_type = M_SYMMETRIC_NEIGHBOR;
+                        }
+                      }
                     /* Sets nbr_type as Not a neighbor */
                     else
-                    {
+                      {
                         nbr_addr_block.common_field.link_state.type_fields.nbr_type = M_NOT_A_NEIGHBOR;
-                    }
+                      }
 
                     to_be_added = true;
                     break;
@@ -1073,6 +1090,7 @@ template <typename T>
       {
         T_N2 new_n2_tuple;
 
+        new_n2_tuple.one_hop_neighb_addr = allowed_two_hop_iter->one_hop_neighb_addr;
         new_n2_tuple.two_hop_neighb_addr = allowed_two_hop_iter->two_hop_neighb_addr;
         p_neighbor_graph->n2_set.push_back(new_n2_tuple);
       }
@@ -1109,11 +1127,11 @@ template <typename T>
           {
               T_MATRIX new_matrix;
 
-              new_matrix.two_hop_neighb_addr = allowed_two_hop_iter->two_hop_neighb_addr;
+              //new_matrix.two_hop_neighb_addr = allowed_two_hop_iter->two_hop_neighb_addr;
               new_matrix.d2 = allowed_two_hop_iter->in_out_metric;
               new_matrix.d = n1_iter->d1 + new_matrix.d2;
 
-              n1_iter->matrix_set.push_back(new_matrix);
+              n1_iter->matrix_set.insert({allowed_two_hop_iter->two_hop_neighb_addr, new_matrix});
 
           }
 
@@ -1122,18 +1140,472 @@ template <typename T>
     }
 
   }
+  /********************************************************************
+      * @function  create_n_neighbor_graph
+      * @brief     This function creates the N Neighbor graph
+      * @param     [1] p_neighbor_graph - Neighbor grapgh
+      *            [3] n_set - A subset of N2 neighbor grapgh
+      *            which is to be filled.
+      * @return    None.
+      * @note      None.
+  ********************************************************************/
+  void
+  C_OLSR::create_n_neighbor_graph(const T_NEIGHBOR_GRAPH &p_neighbor_graph, std::vector<T_N2>& n_set)
+  {
+    /* Loops through the N2 Neighbor graph(2-Hop neighbors) and checks if d1(in/Out metric value) is undefined
+     * If true then adds that 2_hop neighbor to N neighbor graph  */
+    for(std::vector<T_N2>::const_iterator n2_iter = p_neighbor_graph.n2_set.begin();
+            n2_iter != p_neighbor_graph.n2_set.end(); n2_iter++)
+      {
+        if(n2_iter->d1 == M_UNKNOWN_VALUE)
+          {
+            n_set.push_back(*n2_iter);
+          }
+        /* If d1(in/Out metric value) is defined then,
+         * Loops through N1 Neighbor graph and finds atleast one 1-Hop neighbor is connected
+         * to this 2-Hop neighbor and d(Total metric) is less than d1(in/Out metric value)
+         * If true then adds that 2-Hop neighbor to N neighbor graph*/
+        else
+          {
+            for(std::vector<T_N1>::const_iterator n1_iter = p_neighbor_graph.n1_set.begin();
+                n1_iter != p_neighbor_graph.n1_set.end(); n1_iter++)
+              {
+                const T_N1 &n1_graph_tuple = *n1_iter;
+#ifdef COMMENT_SECTION
+                for(std::vector<T_MATRIX>::const_iterator matrix_iter = n1_graph_tuple.matrix_set.begin();
+                    matrix_iter != n1_graph_tuple.matrix_set.end(); matrix_iter++)
+                  {
+                    if((matrix_iter->two_hop_neighb_addr == n2_iter->two_hop_neighb_addr) and (n2_iter->d1 > matrix_iter->d))
+                    {
+                       n_set.push_back(*n2_iter);
+                    }
+                  }
+#endif
+                std::map<T_NODE_ADDRESS, T_MATRIX>::const_iterator matrix_iter = n1_graph_tuple.matrix_set.find(n2_iter->two_hop_neighb_addr);
+                if(matrix_iter != n1_graph_tuple.matrix_set.end())
+                  {
+                    if(n2_iter->d1 > matrix_iter->second.d)
+                      {
+                        n_set.push_back(*n2_iter);
+                      }
+                  }
+              }
+          }
+      }
+  }
+
+  /********************************************************************
+      * @function  find_reachability
+      * @brief     This function finds the reachability of all 1-Hop neighbors
+      * @param     [1] n1_neighbor_graph - 1-Hop neighbors set
+      *            [2] remaining_two_hop_neighb - Uncovered 2-Hop neighbor set
+      *            [3] rs - Reachability count
+      *            [4] reachability - Reachabilty data
+      * @return    None.
+      * @note      None.
+  ********************************************************************/
+  void
+  C_OLSR::find_reachability(const std::vector<T_N1>& n1_neighbor_graph, const std::vector<T_N2>& remaining_two_hop_neighb,
+                        std::set<T_UINT8>& rs, std::map<T_UINT8, std::vector<const T_N1*>>& reachability_map)
+  {
+    T_UINT8 reachability = 0;
+    T_BOOL increment_reachability = false;
+
+    /* Loops through the 1-Hop neighbor set*/
+    for(std::vector<T_N1>::const_iterator n1_neighb_graph_iter = n1_neighbor_graph.begin();
+        n1_neighb_graph_iter != n1_neighbor_graph.end(); n1_neighb_graph_iter++)
+      {
+        reachability= 0;
+        increment_reachability = false;
+        /* Loops through the 2-Hop neighbor set*/
+        for(std::vector<T_N2>::const_iterator remaining_n_graph_iter = remaining_two_hop_neighb.begin();
+            remaining_n_graph_iter != remaining_two_hop_neighb.end(); remaining_n_graph_iter++)
+          {
+            /* Checks if the 2-Hop neighbor is connected through the given 1-Hop neighbor */
+            if(n1_neighb_graph_iter->one_hop_neighb_addr == remaining_n_graph_iter->one_hop_neighb_addr)
+              {
+                /* Checks if the metric value is present between this 2-Hop and 1-Hop neighbor */
+                std::map<T_NODE_ADDRESS, T_MATRIX>::const_iterator one_hop_iter = n1_neighb_graph_iter->matrix_set.find(remaining_n_graph_iter->two_hop_neighb_addr);
+
+                if(one_hop_iter != n1_neighb_graph_iter->matrix_set.end())
+                  {
+                    /* Loops through the other 1-Hop neighbors */
+                    for(std::vector<T_N1>::const_iterator other_n1_graph_iter = n1_neighbor_graph.begin();
+                                        other_n1_graph_iter != n1_neighbor_graph.end(); other_n1_graph_iter++)
+                    {
+                      const T_N1& other_one_hop_neighbor = *other_n1_graph_iter;
+
+                      /* Checks if the metric value is present between this 2-Hop and other 1-Hop neighbor */
+                      std::map<T_NODE_ADDRESS, T_MATRIX>::const_iterator other_neighbor_iter = other_one_hop_neighbor.matrix_set.find(remaining_n_graph_iter->two_hop_neighb_addr);
+
+                      if(other_neighbor_iter != n1_neighb_graph_iter->matrix_set.end())
+                        {
+                          /* Checks if the metric value of current 1-Hop neighbor is less than
+                           * other 1-Hop neighbor. If true then increments its reachability */
+                          if(one_hop_iter->second < other_neighbor_iter->second)
+                            {
+                              increment_reachability = true;
+                            }
+                          else
+                            {
+                              increment_reachability = false;
+                            }
+                         }
+
+                     }
+                    if(increment_reachability == true)
+                      {
+                        reachability++;
+                        increment_reachability = false;
+                      }
+                  }
+              }
+
+          }
+        /* Adds the reachability count of the current neighbor*/
+        rs.insert(reachability);
+        /* Adds the current neighbor to reachability map */
+        reachability_map[reachability].push_back(&(*n1_neighb_graph_iter));
+      }
+
+  }
+
+  /********************************************************************
+      * @function  find_degree
+      * @brief     This function finds the degree of all 1-Hop neighbors
+      * @param     [1] one_hop_neighbor - 1-Hop neighbor
+      *            [2] n1_neighbor_graph - 1-Hop neighbors set
+      *            [3] n_neighbor_graph - 2-Hop neighbor set
+      * @return    None.
+      * @note      None.
+  ********************************************************************/
+  T_UINT8
+  C_OLSR::find_degree(T_N1 one_hop_neighbor, const std::vector<T_N1>& n1_neighbor_graph,
+                      const std::vector<T_N2>& n_neighbor_graph)
+  {
+    T_UINT8 degree = 0;
+    T_BOOL increment_degree = false;
+
+    /* Loops through the 2-hop set */
+    for(std::vector<T_N2>::const_iterator n_graph_iter = n_neighbor_graph.begin();
+        n_graph_iter != n_neighbor_graph.end(); n_graph_iter++)
+      {
+        /* Compares if the given 1-Hop neighbor connects the current 2-Hop neighbor */
+        if(one_hop_neighbor.one_hop_neighb_addr == n_graph_iter->one_hop_neighb_addr)
+          {
+            /* Checks if the metric value is present between this 2-Hop and 1-Hop neighbor */
+            std::map<T_NODE_ADDRESS, T_MATRIX>::const_iterator one_hop_iter = one_hop_neighbor.matrix_set.find(n_graph_iter->two_hop_neighb_addr);
+
+            if(one_hop_iter != one_hop_neighbor.matrix_set.end())
+              {
+                /* Loops through the other 1-Hop neighbors */
+                for(std::vector<T_N1>::const_iterator other_n1_graph_iter = n1_neighbor_graph.begin();
+                                    other_n1_graph_iter != n1_neighbor_graph.end(); other_n1_graph_iter++)
+                {
+                  const T_N1& other_one_hop_neighbor = *other_n1_graph_iter;
+
+                  /* Checks if the metric value is present between this 2-Hop and other 1-Hop neighbor */
+                  std::map<T_NODE_ADDRESS, T_MATRIX>::const_iterator other_neighbor_iter = other_one_hop_neighbor.matrix_set.find(n_graph_iter->two_hop_neighb_addr);
+
+                  if(other_neighbor_iter != one_hop_neighbor.matrix_set.end())
+                    {
+                      /* Checks if the metric value of current 1-Hop neighbor is less than
+                      * other 1-Hop neighbor. If true then increments its degree */
+                      if(one_hop_iter->second < other_neighbor_iter->second)
+                        {
+                          increment_degree = true;
+                        }
+                      else
+                        {
+                          increment_degree = false;
+                        }
+                     }
+
+                 }
+                if(increment_degree == true)
+                  {
+                    degree++;
+                    increment_degree = false;
+                  }
+                }
+          }
+
+      }
+    return degree;
+
+  }
+
+  /********************************************************************
+      * @function  cover_always_willing_neighbors
+      * @brief     This function finds the 1-hop neighbors whose
+      *            willingness is Always and adds it to mpr set,
+      *            2-hop neighbors which are connected through the
+      *            given 1-Hop neighbor and removes them
+      *            from the remaining 2-Hop set
+      * @param     [1] mpr_set - (Routing/Flooding Mpr Set)
+      *            [2] p_neighbor_graph - Neighbor graph
+      *            [3] remaining_two_hop_neighb - 2-Hop neighbor set
+      *            [4] mpr_type - Routing/Flooding MPR
+      * @return    None.
+      * @note      None.
+  ********************************************************************/
+  void
+  C_OLSR::cover_always_willing_neighbors(MprSet& mpr_set, const T_NEIGHBOR_GRAPH& p_neighbor_graph,
+                                          std::vector<T_N2>& remaining_two_hop_neighb, T_UINT8 mpr_type)
+  {
+    switch(mpr_type)
+    {
+      case M_ROUTING_MPR:
+        /* If the type is Routing MPR type, then finds if the 1-hop neighbor's
+         * Routing willingness is Always, if true then add it mpr set.
+         * Removes the 2-hop neighbors which are covered by this neighbor
+         * from remaining 2-hop neighbor set */
+        for(std::vector<T_N1>::const_iterator n1_graph_iter = p_neighbor_graph.n1_set.begin();
+                n1_graph_iter != p_neighbor_graph.n1_set.end(); n1_graph_iter++)
+        {
+          if(n1_graph_iter->neighb_will.fields.route_will == WILL_ALWAYS)
+            {
+              mpr_set.insert(n1_graph_iter->one_hop_neighb_addr);
+              cover_two_hop_neighbors(n1_graph_iter->one_hop_neighb_addr, remaining_two_hop_neighb);
+
+            }
+        }
+        break;
+
+      case M_FLOODING_MPR:
+        /* If the type is Routing MPR type, then finds if the 1-hop neighbor's
+       * Flooding willingness is Always, if true then add it mpr set.
+       * Removes the 2-hop neighbors which are covered by this neighbor
+       * from remaining 2-hop neighbor set */
+        for(std::vector<T_N1>::const_iterator n1_graph_iter = p_neighbor_graph.n1_set.begin();
+                        n1_graph_iter != p_neighbor_graph.n1_set.end(); n1_graph_iter++)
+        {
+          if(n1_graph_iter->neighb_will.fields.flood_will == WILL_ALWAYS)
+            {
+              mpr_set.insert(n1_graph_iter->one_hop_neighb_addr);
+              cover_two_hop_neighbors(n1_graph_iter->one_hop_neighb_addr, remaining_two_hop_neighb);
+
+            }
+        }
+        break;
+
+      default:
+        break;
+
+    }
+
+  }
+
+  /********************************************************************
+      * @function  cover_always_willing_neighbors
+      * @brief     This function finds the 2-hop neighbors which
+      *            are connected only through 1 one_hop neighbor and
+      *            removes them from the remaining 2-Hop set and adds such
+      *            one_hop neighbor to mpr set
+      * @param     [1] mpr_set - (Routing/Flooding Mpr Set)
+      *            [2] remaining_two_hop_neighb - 2-Hop neighbor set
+      * @return    None.
+      * @note      None.
+  ********************************************************************/
+  void
+  C_OLSR::cover_isolated_neighbors(MprSet& mpr_set, std::vector<T_N2>& remaining_two_hop_neighb)
+  {
+    std::set<T_NODE_ADDRESS> covered_two_hop_nodes;
+    for(std::vector<T_N2>::const_iterator two_hop_neighb_iter = remaining_two_hop_neighb.begin();
+        two_hop_neighb_iter != remaining_two_hop_neighb.end(); two_hop_neighb_iter++)
+      {
+        T_BOOL isolated_node = true;
+        for(std::vector<T_N2>::const_iterator other_two_hop_neighb_iter = remaining_two_hop_neighb.begin();
+            other_two_hop_neighb_iter != remaining_two_hop_neighb.end(); other_two_hop_neighb_iter++)
+          {
+            /* Checks whether 2-hop neighbors are connected through multiple 1-hop neighbors.
+             * If False, then cover such 2-Hop neighbors, else skip */
+            if((other_two_hop_neighb_iter->two_hop_neighb_addr == two_hop_neighb_iter->two_hop_neighb_addr) and
+                (other_two_hop_neighb_iter->one_hop_neighb_addr != two_hop_neighb_iter->one_hop_neighb_addr))
+              {
+                isolated_node = false;
+                break;
+              }
+          }
+        /* If 2-hop neighbors are connected through a single 1-hop neighbor,
+         * then add that 1-hop neighbor to mpr set and add 2-hop neighbor to covered set */
+        if(isolated_node == true)
+          {
+            mpr_set.insert(two_hop_neighb_iter->one_hop_neighb_addr);
+            covered_two_hop_nodes.insert(two_hop_neighb_iter->two_hop_neighb_addr);
+          }
+      }
+
+    /* Finds the 2-hop neighbors which are covered above and
+     * removes them from remaining 2-Hop set */
+    for(std::vector<T_N2>::const_iterator two_hop_neighb_iter = remaining_two_hop_neighb.begin();
+            two_hop_neighb_iter != remaining_two_hop_neighb.end();)
+      {
+        if(covered_two_hop_nodes.find(two_hop_neighb_iter->two_hop_neighb_addr) != covered_two_hop_nodes.end())
+          {
+            two_hop_neighb_iter = remaining_two_hop_neighb.erase(two_hop_neighb_iter);
+          }
+        else
+          {
+            two_hop_neighb_iter++;
+          }
+      }
+
+  }
+
+  /********************************************************************
+      * @function  cover_two_hop_neghbors
+      * @brief     This function finds the 2-hop neighbors which are
+      *            connected through the given 1-Hop neighbor and
+      *            removes them from the remaining 2-Hop set
+      * @param     [1] one_hop_neighb - N1-Hop neighbor
+      *            [2] remaining_two_hop_neighb - 2-Hop neighbor  set
+      * @return    None.
+      * @note      None.
+  ********************************************************************/
+  void
+  C_OLSR::cover_two_hop_neighbors(const T_NODE_ADDRESS& one_hop_neighb, std::vector<T_N2>& remaining_two_hop_neighb)
+  {
+    std::set<T_NODE_ADDRESS> two_hop_set_to_be_removed;
+    for(std::vector<T_N2>::const_iterator two_hop_iter = remaining_two_hop_neighb.begin();
+            two_hop_iter != remaining_two_hop_neighb.end(); two_hop_iter++)
+      {
+        if(two_hop_iter->one_hop_neighb_addr == one_hop_neighb)
+          {
+            two_hop_set_to_be_removed.insert(two_hop_iter->two_hop_neighb_addr);
+          }
+      }
+
+    for(std::vector<T_N2>::iterator two_hop_iter = remaining_two_hop_neighb.begin();
+        two_hop_iter != remaining_two_hop_neighb.end();)
+      {
+        if(two_hop_set_to_be_removed.find(two_hop_iter->two_hop_neighb_addr) != two_hop_set_to_be_removed.end())
+          {
+            two_hop_iter = remaining_two_hop_neighb.erase(two_hop_iter);
+          }
+        else
+          {
+            two_hop_iter++;
+          }
+
+      }
+
+  }
 
   /********************************************************************
       * @function  calculate_mprs
       * @brief     This function calculates the MPRs of the node
       * @param	   [1] p_neighbor_graph - Neighbor graph
+      *            [2] mpr_type - Routing/Flooding MPR
       * @return    None.
       * @note      None.
   ********************************************************************/
 
-  void C_OLSR::calculate_mprs(const T_NEIGHBOR_GRAPH &p_neighbor_graph)
+  void C_OLSR::calculate_mprs(T_NEIGHBOR_GRAPH &p_neighbor_graph, T_UINT8 mpr_type)
   {
-    ;
+    std::vector<T_N2> n_set;
+    MprSet mpr_set;
+
+    create_n_neighbor_graph(p_neighbor_graph, n_set);
+
+    std::vector<T_N2> remaining_two_hop_neighb =  n_set;
+
+    /* Adds the 1-hop neighbors to mpr set whose willingness is Always */
+    cover_always_willing_neighbors(mpr_set, p_neighbor_graph, remaining_two_hop_neighb, mpr_type);
+
+    /* Adds the 1-hop neighbors to mpr set which have the connectivity to
+     * Isolated 2-Hop neighbors */
+    cover_isolated_neighbors(mpr_set, remaining_two_hop_neighb);
+
+    while(remaining_two_hop_neighb.begin() != remaining_two_hop_neighb.end())
+      {
+        std::set<T_UINT8> reachability_count;
+        std::map<T_UINT8, std::vector<const T_N1*>> reachability_map;
+
+        /* Finds the remaining number of 2-hop neighbors which are connected by each 1-hop neighbor*/
+        find_reachability(p_neighbor_graph.n1_set, remaining_two_hop_neighb, reachability_count, reachability_map);
+
+        T_N1 const *max_neighbor = NULL;
+        T_UINT8 max_reachability = 0;
+        T_UINT8 max_willingness = 0;
+
+        for(std::set<T_UINT8>::iterator rs_iter = reachability_count.begin();
+            rs_iter != reachability_count.end(); rs_iter++)
+          {
+            T_UINT8 r_count = *rs_iter;
+
+            /* If the reachability count of neighbor is zero then skips,
+             * otherwise proceeds*/
+            if(r_count != 0)
+              {
+                for(std::vector<const T_N1*>::iterator rs_map_iter = reachability_map[r_count].begin();
+                    rs_map_iter != reachability_map[r_count].end(); rs_map_iter++)
+                  {
+                    const T_N1* n1_graph_tuple = *rs_map_iter;
+                    T_UINT8 n1_graph_willingness = 0;
+
+                    if(mpr_type == M_ROUTING_MPR)
+                      {
+                        max_willingness = max_neighbor->neighb_will.fields.route_will;
+                        n1_graph_willingness = n1_graph_tuple->neighb_will.fields.route_will;
+                      }
+                    else
+                      {
+                        max_willingness = max_neighbor->neighb_will.fields.flood_will;
+                        n1_graph_willingness = n1_graph_tuple->neighb_will.fields.flood_will;
+                      }
+                    /* Comapares 2 1-hop neighbors as follows:
+                     * Neighbor having highest willingness will be added to mpr set.
+                     * If willingness is same then compares reachability of these two neighbors,
+                     * Maximum reachable neighbor will be added to mpr set,
+                     * If reachability is same then compares Degree(Total number of 2-hop
+                     * neighbor can be connected) of these two neighbors,
+                     * The neighbor with maximum Degree will be addded to mpr set*/
+                    if((max_neighbor == NULL) || (n1_graph_willingness > max_willingness))
+                      {
+                        max_neighbor = n1_graph_tuple;
+                        max_reachability = r_count;
+                      }
+                    else if(n1_graph_willingness == max_willingness)
+                      {
+                        if(r_count > max_reachability)
+                          {
+                            max_neighbor = n1_graph_tuple;
+                            max_reachability = r_count;
+
+                          }
+                        else if(r_count == max_reachability)
+                          {
+                            if(find_degree(*n1_graph_tuple, p_neighbor_graph.n1_set, n_set) <
+                                find_degree(*max_neighbor, p_neighbor_graph.n1_set, n_set))
+                              {
+                                max_neighbor = n1_graph_tuple;
+                                max_reachability = r_count;
+                              }
+                          }
+
+                      }
+
+                  }
+
+              }
+
+          }
+        /* If a neighbor with maximum coverage is obtained then,
+         * adds it to mpr set and removes the covered 2-hop neighbors
+         * from remaining 2-Hop set */
+        if(max_neighbor != NULL)
+          {
+            mpr_set.insert(max_neighbor->one_hop_neighb_addr);
+            cover_two_hop_neighbors(max_neighbor->one_hop_neighb_addr, remaining_two_hop_neighb);
+          }
+
+
+      }
+
+    /* Calls the below function to update respective neighbors as MPRs*/
+    m_state.populate_mpr_set(mpr_set, mpr_type);
+
   }
 
   /********************************************************************
@@ -1188,7 +1660,76 @@ template <typename T>
   ********************************************************************/
   void C_OLSR::calculate_routing_table(const T_NETWORK_TOPOLOGY_GRAPH& p_network_topology_graph)
   {
-    ;
+    /* Erases the complete Routing Table */
+    m_state.erase_routing_table();
+    T_UINT8 hop_count = M_ONE;
+
+    /* Adds all the symmetric 1-hop neighbors to Routing Table */
+    for(std::vector<T_NETWORK_LINK>::const_iterator one_hop_neigh_iter = p_network_topology_graph.one_hop_set.begin();
+        one_hop_neigh_iter != p_network_topology_graph.one_hop_set.end(); one_hop_neigh_iter++)
+      {
+        m_state.insert_routing_tuple(*one_hop_neigh_iter, one_hop_neigh_iter->src_addr, hop_count);
+      }
+
+    /* Loops through Routing table and finds the routes to all the destinations present in Router Topology table */
+    for(std::map<T_NODE_ADDRESS, T_ROUTING_TABLE_ENTRY>::iterator routing_table_iter = m_state.get_routing_table().begin();
+        routing_table_iter != m_state.get_routing_table().end(); routing_table_iter++)
+      {
+        if(routing_table_iter->second.r_used == false)
+          {
+            routing_table_iter->second.r_used = true;
+
+            for(std::vector<T_NETWORK_LINK>::const_iterator router_topo_iter = p_network_topology_graph.router_topology_set.begin();
+                router_topo_iter != p_network_topology_graph.router_topology_set.end(); router_topo_iter++)
+              {
+                /* Checks whether Routing tuple's destination address is matching
+                 * with Router topology tuple's source address */
+                if(routing_table_iter->first == router_topo_iter->src_addr)
+                  {
+                    /* Creates a new Network link and adds the following
+                     * i) Set out link metric of the new tuple by adding the out link metric value of current Routing tuple and
+                     * Out link  metric value of Router topology tuple
+                     * ii) Set the new distance by adding 1 to distance value of current Routing tuple */
+                    T_NETWORK_LINK new_tuple;
+
+                    new_tuple.out_metric = routing_table_iter->second.r_metric + router_topo_iter->out_metric;
+                    hop_count = routing_table_iter->second.r_dist + M_ONE;
+
+                    /* Finds whether a Routing tuple for the destination is already present
+                     * and its Out link metric is greater or equal to the new metric.
+                     * If true then updates the found Routing tuple with
+                     * next hop address = Next Hop address address of the current Routing Tuple,
+                     * r_metric = New metric,
+                     * r_dist = New Hop count */
+                    T_ROUTING_TABLE_ENTRY * routing_tuple = m_state.find_routing_tuple(router_topo_iter->dest_addr, new_tuple.out_metric);
+
+                    /* If the Routing tuple is not found then,
+                     * Creates a new routing tuple with the following data,
+                     * i) Destination address = Router Topology tuple's destination address,
+                     * ii) next hop address = Next Hop address address of the current Routing Tuple,
+                     * iii) r_metric = New metric,
+                     * iv) r_dist = New Hop count */
+                    if(routing_tuple == NULL)
+                      {
+                        new_tuple.dest_addr = router_topo_iter->dest_addr;
+                        new_tuple.src_addr = m_node_address;
+                        m_state.insert_routing_tuple(new_tuple, routing_table_iter->second.r_next_iface_addr, hop_count);
+
+                      }
+                    else
+                      {
+                        routing_tuple->r_next_iface_addr = routing_table_iter->second.r_next_iface_addr;
+                        routing_tuple->r_metric =new_tuple.out_metric;
+                        routing_tuple->r_dist = hop_count;
+
+                      }
+
+                  }
+              }
+          }
+
+      }
+
   }
 
   /********************************************************************
@@ -1207,7 +1748,7 @@ template <typename T>
 
     /* Calls calculate_routing_table() function to calculate
      * the Routing Table*/
-    /* TBD - calculate_routing_table();*/
+    calculate_routing_table(network_topology_graph);
     cout << "Completed Routing Tale preparation" << endl;
 
   }
@@ -1253,7 +1794,7 @@ template <typename T>
       {
         T_UINT8 index;
         /* Checks if the allowed 2-Hop neighbor is also a 1-Hop neighbor of the node
-         * If true then add the In link_metric to N2 neighbor graph
+         * If true then adds the In link_metric to N2 neighbor graph
          * otherwise, add Unknown value*/
         if(find_allowed_one_hop_address<T_ALLOWED_ONE_HOP_TUPLE>(n2_iter->two_hop_neighb_addr, allowed_one_hop_set, &index) == true)
         {
@@ -1270,7 +1811,7 @@ template <typename T>
      * between the node and its 2-Hop neighbor */
     compute_total_metric(allowed_two_hop_set, &routing_neighbor_graph);
 
-    /* TBD - calculate_mprs(routing_neighbor_graph);*/
+    calculate_mprs(routing_neighbor_graph, M_ROUTING_MPR);
 
   }
 
@@ -1320,7 +1861,7 @@ template <typename T>
     compute_total_metric(allowed_two_hop_link_set, &flooding_neighbor_graph);
 
 
-    /* TBD - calculate_mprs(routing_neighbor_graph);*/
+    calculate_mprs(flooding_neighbor_graph, M_FLOODING_MPR);
 
   }
 

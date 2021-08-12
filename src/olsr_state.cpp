@@ -119,6 +119,104 @@ namespace ns_olsr2_0
     return NULL;
 
    }
+   /********************************************************************
+     * @function  update_neighbour_tuple
+     * @brief     This function finds the symmetric neighbor tuple
+     *            corresponding to the given neighbor address and returns.
+     * @param     [1] nbr_addr - 1-Hop neighbor address.
+     * @return    None.
+     * @note      None.
+     ********************************************************************/
+   void
+   C_OLSR_STATE::update_neighbour_tuple (const T_NODE_ADDRESS &neighb_main_addr)
+   {
+     /* Finds the given neighbor in the neighbor set and
+      * make that neighbor as not asymmetric*/
+     for (std::vector<T_NEIGHBOUR_TUPLE>::iterator nbr_iterator = m_neighbour_set.begin ();
+                   nbr_iterator != m_neighbour_set.end (); nbr_iterator++)
+           {
+             if (nbr_iterator->n_neighbor_addr == neighb_main_addr)
+               {
+
+                 nbr_iterator->n_symmetric = false;
+               }
+           }
+
+   }
+   /********************************************************************
+     * @function  erase_neighbour_tuple
+     * @brief     This function finds the symmetric neighbor tuple
+     *            corresponding to the given neighbor address and erases it.
+     * @param     [1] nbr_addr - 1-Hop neighbor address.
+     * @return    None.
+     * @note      None.
+     ********************************************************************/
+   void
+   C_OLSR_STATE::erase_neighbour_tuple (const T_NODE_ADDRESS &neighb_main_addr)
+   {
+     /* Finds the given neighbor in the neighbor set and
+      * removes it*/
+     for (std::vector<T_NEIGHBOUR_TUPLE>::iterator nbr_iterator = m_neighbour_set.begin ();
+                   nbr_iterator != m_neighbour_set.end ();)
+           {
+             if (nbr_iterator->n_neighbor_addr == neighb_main_addr)
+               {
+
+                 nbr_iterator = m_neighbour_set.erase(nbr_iterator);
+               }
+             else
+               {
+                 nbr_iterator++;
+               }
+           }
+
+   }
+  /********************************************************************
+    * @function  populate_mpr_set
+    * @brief     This function finds the neighbor address in the mpr set.
+    *            If found then make him as MPR .
+    * @param     [1] mpr_set - 1-Hop neighbor address.
+    *            [2] mpr_type - Routing/Flooding type
+    * @return    None.
+    * @note      None.
+    ********************************************************************/
+   void
+   C_OLSR_STATE::populate_mpr_set(const MprSet& mpr_set, T_UINT8 mpr_type)
+   {
+     if(mpr_type == M_ROUTING_MPR)
+       {
+         /* Finds the 1-hop neighbor in the mpr set, if found then,
+          * makes him as Routing MPR */
+         for (std::vector<T_NEIGHBOUR_TUPLE>::iterator nbr_iterator = m_neighbour_set.begin ();
+                           nbr_iterator != m_neighbour_set.end (); nbr_iterator++)
+           {
+             if (mpr_set.find(nbr_iterator->n_neighbor_addr) != mpr_set.end())
+               {
+
+                 nbr_iterator->n_routing_mpr = true;
+               }
+           }
+
+       }
+     else
+       {
+         /* Finds the 1-hop neighbor in the mpr set, if found then,
+         * makes him as Flooding MPR */
+         for (std::vector<T_NEIGHBOUR_TUPLE>::iterator nbr_iterator = m_neighbour_set.begin ();
+                            nbr_iterator != m_neighbour_set.end (); nbr_iterator++)
+          {
+            if (mpr_set.find(nbr_iterator->n_neighbor_addr) != mpr_set.end())
+              {
+
+                nbr_iterator->n_flooding_mpr = true;
+              }
+          }
+
+        }
+
+
+   }
+
 
   /********************************************************************
    * @function  get_two_hop_neighbours
@@ -536,21 +634,21 @@ namespace ns_olsr2_0
 
   /********************************************************************
    * @function  erase_router_topology_tuple
-   * @brief     This function removes the router topology tuples.
+   * @brief     This function removes the router topology tuples
+   *            when timeout happens.
    * @param     [1] tc_sender - Originator of TC message.
-   *            [2] ansn - Advertized sequence number.
    * @return    None.
    * @note      None.
    ********************************************************************/
   void
-  C_OLSR_STATE::erase_router_topology_tuple(const T_NODE_ADDRESS &tc_sender, T_UINT16 ansn)
+  C_OLSR_STATE::erase_router_topology_tuple(const T_NODE_ADDRESS &tc_sender)
   {
     /* Removes all the Router Topology Tuples whose tr_from_orig_addr and tr_seq_number
      * match with tc_sender and ansn */
     for(RouterTopologySet::const_iterator router_topo_iter = m_router_topology_set.begin();
         router_topo_iter != m_router_topology_set.end(); router_topo_iter++)
       {
-        if((router_topo_iter->tr_from_orig_addr == tc_sender) and (router_topo_iter->tr_seq_number == ansn))
+        if(router_topo_iter->tr_from_orig_addr == tc_sender)
           {
             router_topo_iter = m_router_topology_set.erase(router_topo_iter);
           }
@@ -706,21 +804,105 @@ namespace ns_olsr2_0
     /* Loops through the Routing table and finds if the given destination address'
      * entry is present or not. If present then returns the next 1-Hop router's
      * address to reach that destination */
-    for(std::map<T_NODE_ADDRESS, T_ROUTING_TABLE_ENTRY>::const_iterator router_iter = m_routing_table.begin();
-        router_iter != m_routing_table.end(); router_iter++)
-      {
-        if(dest_address == router_iter->first)
-          {
-            p_rdest_addr->field.m_nid = router_iter->second.r_next_iface_addr.node_id;
-            p_rdest_addr->field.m_oid = router_iter->second.r_next_iface_addr.net_id;
-            route_state = ROUTE_FOUND;
-            return route_state;
-          }
+    std::map<T_NODE_ADDRESS, T_ROUTING_TABLE_ENTRY>::const_iterator router_iter = m_routing_table.find(dest_address);
 
+    if(router_iter != m_routing_table.end())
+      {
+        p_rdest_addr->field.m_nid = router_iter->second.r_next_iface_addr.node_id;
+        p_rdest_addr->field.m_oid = router_iter->second.r_next_iface_addr.net_id;
+        route_state = ROUTE_FOUND;
+        return route_state;
       }
 
     return route_state;
 
+  }
+
+
+ /********************************************************************
+  * @function  insert_routing_tuple
+  * @brief     This function Creates and inserts routing tuple to
+  *            Routing Table.
+  * @param     [1] new_route_data - New Routing table data.
+  *            [2] next_address - Next hop address.
+  *            [3] hop_count - Distance from this node to destination.
+  * @return    None.
+  * @note      None.
+  ********************************************************************/
+  void
+  C_OLSR_STATE::insert_routing_tuple(T_NETWORK_LINK new_route_data, const T_NODE_ADDRESS& next_address, T_UINT8 hop_count)
+  {
+
+    T_ROUTING_TABLE_ENTRY new_entry;
+
+    new_entry.r_dest_addr = new_route_data.dest_addr;
+    new_entry.r_next_iface_addr = next_address;
+    new_entry.r_local_iface_addr = new_route_data.src_addr;
+    new_entry.r_metric = new_route_data.out_metric;
+    new_entry.r_dist = hop_count;
+    new_entry.r_used = false;
+
+    m_routing_table.insert({new_entry.r_dest_addr, new_entry});
+  }
+
+  /********************************************************************
+   * @function  get_routing_table
+   * @brief     This function erases complete Routing Table.
+   * @param     None.
+   * @return    None.
+   * @note      None.
+   ********************************************************************/
+  std::map<T_NODE_ADDRESS, T_ROUTING_TABLE_ENTRY>
+  C_OLSR_STATE::get_routing_table(void) const
+  {
+    return m_routing_table;
+  }
+
+  /********************************************************************
+   * @function  find_routing_tuple
+   * @brief     This function finds the Routing tuple with the
+   *            given destination address where the metric value
+   *            is greater than the given new_metric value.
+   * @param     [1] dest_addr - Destination address.
+   *            [2] new_metric - New out link metric
+   * @return    Address of the matched routing tuple.
+   * @note      None.
+   ********************************************************************/
+  T_ROUTING_TABLE_ENTRY*
+  C_OLSR_STATE::find_routing_tuple(const T_NODE_ADDRESS& dest_addr, float new_metric)
+  {
+    T_ROUTING_TABLE_ENTRY* existing_tuple = NULL;
+
+    /* Finds whether a routing tuple is already present for the given destination and
+     * that tuple is not used for finding further routes.
+     * Then checks whether the link out metric value of that tuple is greater than or equal to
+     * the given new_metric, if true then this tuple must be updated for new metric
+     * So it returns that tuple*/
+    std::map<T_NODE_ADDRESS, T_ROUTING_TABLE_ENTRY>::iterator routing_table_iter = m_routing_table.find(dest_addr);
+
+    if(routing_table_iter != m_routing_table.end())
+      {
+        if((routing_table_iter->second.r_used == false) and (routing_table_iter->second.r_metric >= new_metric))
+          {
+            existing_tuple = &(routing_table_iter->second);
+
+          }
+      }
+    return existing_tuple;
+
+  }
+
+  /********************************************************************
+   * @function  erase_routing_tuple
+   * @brief     This function erases complete Routing Table.
+   * @param     None.
+   * @return    None.
+   * @note      None.
+   ********************************************************************/
+  void
+  C_OLSR_STATE::erase_routing_table()
+  {
+    m_routing_table.clear();
   }
 
   /********************************************************************
@@ -758,9 +940,42 @@ namespace ns_olsr2_0
   {
     Time now = get_ns();
 
-    ;
+    for(LinkSet::iterator link_set_iter = m_link_set.begin(); link_set_iter != m_link_set.end();)
+      {
+        /* Checks if the link tuple is not symmetric but assymetric
+         * If true then set the link status as Heard  */
+        if((now > link_set_iter->l_sym_time) and (now < link_set_iter->l_heard_time))
+        {
+            link_set_iter->l_status = M_HEARD;
+            /* Calls the below function to set neighbor as asymmetric in neihbor tuple */
+            update_neighbour_tuple(link_set_iter->l_neighbor_iface_addr);
+            link_set_iter++;
+        }
+        /* If the link is neither symmetric nor assymetric then,
+         * checks whether the validity time of the tuple is not over.
+         * If true then sets the link status as Lost
+         * otherwise removes the tuple from link set*/
+        else
+          {
+            if (now < link_set_iter->l_time)
+              {
+                link_set_iter->l_status = M_LOST;
+                /* Calls the below function to set neighbor as asymmetric in neihbor tuple */
+                update_neighbour_tuple(link_set_iter->l_neighbor_iface_addr);
+                link_set_iter++;
+              }
+            else
+              {
+                /* Calls the below function to remove the neighbor from neighbor set */
+                erase_neighbour_tuple(link_set_iter->l_neighbor_iface_addr);
+                link_set_iter = m_link_set.erase(link_set_iter);
+              }
+          }
+      }
+
   }
 
+#ifdef COMMENT_SECTION
   /********************************************************************
       * @function  check_one_hop_neigh_set_timeout
       * @brief     This function checks the timeout of all tuples
@@ -772,7 +987,7 @@ namespace ns_olsr2_0
   {
     ;
   }
-
+#endif
   /********************************************************************
       * @function  check_two_hop_neigh_set_timeout
       * @brief     This function checks the timeout of all tuples
@@ -782,7 +997,22 @@ namespace ns_olsr2_0
   ********************************************************************/
   void C_OLSR_STATE::check_two_hop_neigh_set_timeout()
   {
-    ;
+    Time now = get_ns();
+
+    /* Checks validity of each tuple in  2-hop neighbor set
+     * If not valid then removes that tuple */
+    for(TwoHopNeighborSet::iterator two_hop_set_iter = m_two_hop_neighbour_set.begin(); two_hop_set_iter != m_two_hop_neighbour_set.end();)
+      {
+        if(now > two_hop_set_iter->n2_time)
+        {
+            two_hop_set_iter = m_two_hop_neighbour_set.erase(two_hop_set_iter);
+        }
+        else
+        {
+            two_hop_set_iter++;
+        }
+      }
+
   }
 
   /********************************************************************
@@ -794,7 +1024,24 @@ namespace ns_olsr2_0
   ********************************************************************/
   void C_OLSR_STATE::check_advt_router_set_timeout()
   {
-    ;
+    Time now = get_ns();
+
+    /* Checks validity of each tuple in  Advertised router set
+     * If not valid then removes that tuple and also
+     * removes Router topology tuples depending on this tuple*/
+    for(AdvertisingRemoteRouterSet::iterator advt_router_set_iter = m_advertising_remote_router_set.begin(); advt_router_set_iter != m_advertising_remote_router_set.end();)
+      {
+        if(now > advt_router_set_iter->ar_time)
+        {
+            erase_router_topology_tuple(advt_router_set_iter->ar_orig_addr);
+            advt_router_set_iter = m_advertising_remote_router_set.erase(advt_router_set_iter);
+
+        }
+        else
+        {
+            advt_router_set_iter++;
+        }
+      }
   }
 
   /********************************************************************
@@ -806,7 +1053,20 @@ namespace ns_olsr2_0
   ********************************************************************/
   void C_OLSR_STATE::check_router_topo_set_timeout()
   {
-    ;
+    Time now = get_ns();
+    /* Checks validity of each tuple in  Router topology set
+     * If not valid then removes that tuple */
+    for(RouterTopologySet::iterator router_topo_iter = m_router_topology_set.begin(); router_topo_iter != m_router_topology_set.end();)
+      {
+        if(now > router_topo_iter->tr_time)
+        {
+            router_topo_iter = m_router_topology_set.erase(router_topo_iter);
+        }
+        else
+        {
+            router_topo_iter++;
+        }
+      }
   }
 
   /********************************************************************
@@ -818,7 +1078,20 @@ namespace ns_olsr2_0
   ********************************************************************/
   void C_OLSR_STATE::check_processed_msg_set_timeout()
   {
-    ;
+    Time now = get_ns();
+    /* Checks validity of each tuple in  processed msg set
+     * If not valid then removes that tuple */
+    for(ProcessedMsgSet::iterator processed_msg_iter = m_processed_msg_set.begin(); processed_msg_iter != m_processed_msg_set.end();)
+      {
+        if(now > processed_msg_iter->p_time)
+        {
+            processed_msg_iter = m_processed_msg_set.erase(processed_msg_iter);
+        }
+        else
+        {
+            processed_msg_iter++;
+        }
+      }
   }
 
   /********************************************************************
@@ -830,7 +1103,20 @@ namespace ns_olsr2_0
   ********************************************************************/
   void C_OLSR_STATE::check_forwarded_msg_set_timeout()
   {
-    ;
+    Time now = get_ns();
+    /* Checks validity of each tuple in  forwarded msg set
+     * If not valid then removes that tuple */
+    for(ForwardedMsgSet::iterator forwarded_msg_iter = m_forwarded_msg_set.begin(); forwarded_msg_iter != m_forwarded_msg_set.end();)
+      {
+        if(now > forwarded_msg_iter->f_time)
+        {
+            forwarded_msg_iter = m_forwarded_msg_set.erase(forwarded_msg_iter);
+        }
+        else
+        {
+            forwarded_msg_iter++;
+        }
+      }
   }
 
   /********************************************************************
@@ -842,7 +1128,6 @@ namespace ns_olsr2_0
   void C_OLSR_STATE::check_tables_timeout()
   {
     check_link_set_timeout();
-    check_one_hop_neigh_set_timeout();
     check_two_hop_neigh_set_timeout();
     check_advt_router_set_timeout();
     check_router_topo_set_timeout();

@@ -21,7 +21,6 @@
 #ifndef OLSR_STATE_HPP_
 #define OLSR_STATE_HPP_
 
-#include <map>
 #include "olsr_types.hpp"    /* Include file for OLSR types functionalities */
 
 namespace ns_olsr2_0
@@ -89,13 +88,20 @@ namespace ns_olsr2_0
     find_sym_neighbour_tuple (const T_NODE_ADDRESS &main_addr) const;
 
     /* Erases a neighbor tuple.                                        */
-    void erase_neighbour_tuple (const T_NEIGHBOUR_TUPLE &neighbour_tuple);
+    void update_neighbour_tuple (const T_NODE_ADDRESS &neighb_main_addr);
+
+    /* Erases a neighbor tuple.                                        */
+    void erase_neighbour_tuple (const T_NODE_ADDRESS &neighb_main_addr);
 
     /* Inserts a neighbor tuple.                                       */
     void insert_neighbour_tuple (const T_NEIGHBOUR_TUPLE &);
 
+    #ifdef COMMENT_SECTION
     /* Checks the timeout of the tuples in 1-Hop neighbor set*/
     void check_one_hop_neigh_set_timeout();
+    #endif
+
+    void populate_mpr_set(const MprSet& mpr_set, T_UINT8 mpr_type);
 
     /* ----------------------------  [ Two hop neighbour ] -------------------------------- */
 
@@ -200,7 +206,7 @@ namespace ns_olsr2_0
     void erase_older_router_topology_tuple (const T_NODE_ADDRESS &, T_UINT16);
 	
     /* Erases a Router Topology tuple.                                 */
-    void erase_router_topology_tuple (const T_NODE_ADDRESS &, T_UINT16);
+    void erase_router_topology_tuple (const T_NODE_ADDRESS&);
 	
     /* Inserts a Router Topology tuple tuple.                          */
     void insert_router_topology_tuple (const T_ROUTER_TOPOLOGY_TUPLE &tuple);
@@ -225,6 +231,18 @@ namespace ns_olsr2_0
 
     /* Checks the timeout of all table entries */
     void check_tables_timeout();
+
+    /* Creates and adds the new routing tuple to Routing Table*/
+    void insert_routing_tuple(T_NETWORK_LINK new_route_data, const T_NODE_ADDRESS& next_address, T_UINT8 hop_count);
+
+    /* Erases the complete Routing Table */
+    void erase_routing_table();
+
+    /* Gets the complete Routing Table */
+    std::map<T_NODE_ADDRESS, T_ROUTING_TABLE_ENTRY> get_routing_table(void) const;
+
+    /* Finds the Routing Table with the given distination address */
+    T_ROUTING_TABLE_ENTRY* find_routing_tuple(const T_NODE_ADDRESS& dest_addr, float new_metric);
 
     /* Finds the next routing node's address */
     E_ROUTE_STATUS find_next_routing_hop_addr(const T_ADDR* p_dest_addr, T_ADDR* p_rdest_addr);
