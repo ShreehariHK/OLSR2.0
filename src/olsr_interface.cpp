@@ -1,9 +1,9 @@
 /*                        Project title
  *
  *
- * Source Code Name   :   gateway_interface.cpp
+ * Source Code Name   :   olsr_interface.cpp
  *
- * Description        :   Implements Gateway interface for OLSR.
+ * Description        :   Implements interface for OLSR.
  *
  * Subsystem Name     :   OLSR
  *
@@ -77,30 +77,26 @@ namespace ns_olsr2_0
   }
 
  /********************************************************************
-  * @function  recv_olsr
-  * @brief     This function stores the attached network information
-  *            received from Gateway
-  * @param     network_table.
+  * @function  get_topology_info
+  * @brief     This function shared the networktopology information.
+  * @param     None.
   * @return    None.
   * @note      None.
  ********************************************************************/
- void C_OLSR::recv_olsr(void * olsr_packet)
- {
-   ;
- }
+  T_TOPOLOGY_INFO
+  C_OLSR::get_topology_info()
+{
+  T_TOPOLOGY_INFO network_topology_info;
+  network_topology_info.message_id = 1;
 
- /********************************************************************
-   * @function  send_olsr_msg
-   * @brief     This function returns the attached network information
-   *            to the Gateway
-   * @param     None.
-   * @return    None.
-   * @note      None.
-  ********************************************************************/
- void C_OLSR::send_olsr_msg()
- {
-   ;
- }
+  this->m_state.get_network_topology_info(network_topology_info.payload);
+
+  network_topology_info.payload_length = (network_topology_info.payload.size() * 9);
+
+  network_topology_info.checksum = 0xA5;
+
+  return network_topology_info;
+}
 
 #ifdef M_TO_BE_DELETED
 
@@ -134,7 +130,7 @@ namespace ns_olsr2_0
 
  T_UINT8 C_OLSR::get_node_willingness(void)
  {
-   return 0x33;  /* 0011 0011 = Willingness HIGH is set to both Routing and Flooding */
+   return 0x32;  /* 0011 0011 = Willingness HIGH is set to both Routing and Flooding */
  }
 
  /********************************************************************

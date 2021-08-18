@@ -26,15 +26,48 @@ namespace ns_olsr2_0
    * @note      None.
    ********************************************************************/
   void
-  C_OLSR::recv_olsr (const C_PACKET_HEADER olsr_packet, T_NODE_ADDRESS& sender_address,
-                     T_NODE_ADDRESS& receiver_address, float l_in_metric)
+  C_OLSR::recv_olsr (const T_UINT8* olsr_packet_buffer, const T_NODE_ADDRESS& sender_address,
+                     const T_NODE_ADDRESS& receiver_address, float l_in_metric)
   {
-    /* TBD Deserializarion */
+    T_OLSR_PACKET* olsr_packet;
+
+    T_UINT16 start_index = 0;
+
+    olsr_packet = (T_OLSR_PACKET*)olsr_packet_buffer;
+
+    C_MESSAGE_HEADER::OlsrMsgList olsr_msg_list;
+    if(((olsr_packet->packet_header.msg_type & HELLO_MESSAGE) != 0) and ((olsr_packet->packet_header.hello_msg_size) != 0))
+    {
+        C_MESSAGE_HEADER msg_header;
+        cout << "Hello message deserialisation begin" << endl;
+        msg_header.deserialize((E_OLSR_MSG_TYPE)olsr_packet->packet_header.msg_type, olsr_packet->olsr_msg_buffer, start_index, olsr_packet->packet_header.hello_msg_size);
+        olsr_msg_list.push_back(msg_header);
+        cout << "Hello message deserialisation end" << endl;
+    }
+
+    if((olsr_packet->packet_header.msg_type & TC_MESSAGE) != 0)
+    {
+        C_MESSAGE_HEADER msg_header;
+        cout << "Tc message deserialisation begin" << endl;
+        start_index = olsr_packet->packet_header.hello_msg_size;
+        msg_header.deserialize((E_OLSR_MSG_TYPE)olsr_packet->packet_header.msg_type, olsr_packet->olsr_msg_buffer, start_index, olsr_packet->packet_header.tc_msg_size);
+        olsr_msg_list.push_back(msg_header);
+        cout << "Tc message deserialisation end" << endl;
+    }
+
+    if((olsr_packet->packet_header.msg_type & TC_FORWARDED) != 0)
+    {
+        C_MESSAGE_HEADER msg_header;
+        cout << "Tc forwarded message deserialisation begin" << endl;
+        start_index = olsr_packet->packet_header.hello_msg_size + olsr_packet->packet_header.tc_msg_size;
+        msg_header.deserialize((E_OLSR_MSG_TYPE)olsr_packet->packet_header.msg_type, olsr_packet->olsr_msg_buffer, start_index, olsr_packet->packet_header.tcf_msg_size);
+        olsr_msg_list.push_back(msg_header);
+        cout << "Hello message deserialisation begin" << endl;
+    }
 
     /* If the receiver_address is equal to the current node's address then proceed */
     if (receiver_address == m_node_address)
-      {
-        C_MESSAGE_HEADER::OlsrMsgList olsr_msg_list;
+    {
         for (C_MESSAGE_HEADER::OlsrMsgList::const_iterator list_iter = olsr_msg_list.begin ();
             list_iter != olsr_msg_list.end (); list_iter++)
           {
@@ -44,6 +77,7 @@ namespace ns_olsr2_0
              * If not valid then skips */
             if (check_message_validity (message_header) == false)
               {
+                cout << "Message not valid" << endl;
                 continue;
               }
 
@@ -59,12 +93,14 @@ namespace ns_olsr2_0
                   /* If the message type is Hello then calls process_hello() function
                    * to process Hello message*/
                   case HELLO_MESSAGE:
+                    cout << "Hello message processing started" << endl;
                     this->process_hello (message_header, sender_address, l_in_metric);
                     break;
                     /* If the message type is TC then
                      * i) calls process_tc() function to process TC message
                      * ii) calls forward_default() to handle the message forwarding */
                   case TC_MESSAGE:
+                       TC_FORWARDED:
                     this->process_tc (message_header, sender_address);
                     forward_default (message_header, sender_address);
                     break;
@@ -280,20 +316,22 @@ namespace ns_olsr2_0
      * TC message originator*/
     m_state.erase_older_advertising_router_tuple (msg.get_originator_address (), tc_msg.ansn);
 
-    for (std::vector<C_MESSAGE_HEADER::T_TC_ADDRESS_BLOCK>::const_iterator tc_msg_iter = tc_msg.tc_addr_set.begin ();
-        tc_msg_iter != tc_msg.tc_addr_set.end (); tc_msg_iter++)
+#ifdef COMMENT_SECTON
+    for (std::vector<C_MESSAGE_HEADER::T_TC_ADDRESS_BLOCK>::const_iterator tc_msg_iter = tc_msg.tc_addr_block.begin ();
+        tc_msg_iter != tc_msg.tc_addr_block.end (); tc_msg_iter++)
       {
         const C_MESSAGE_HEADER::T_TC_ADDRESS_BLOCK &tc_addr_tuple = *tc_msg_iter;
+#endif
         E_ADDRESS_BLOCK_FLAGS common_address_field;
         T_UINT8 common_address_id;
         T_NODE_ADDRESS remote_router_address;
 
         /* Gets the common address information
          * i.e whether the address contain common Net ID or Node ID*/
-        get_common_address (tc_addr_tuple, &common_address_field, &common_address_id);
+        get_common_address (tc_msg.tc_addr_block, &common_address_field, &common_address_id);
 
         /* Checks if the TC message type */
-        switch (tc_addr_tuple.tc_msg_type)
+        switch (tc_msg.tc_addr_block.tc_msg_type)
           {
           /* If the message type is ROUTABLE_ORIG
            * i.e originated from a Routing MPR to share local network info,
@@ -307,7 +345,7 @@ namespace ns_olsr2_0
                    * and adds router's unique id to node id */
                   case NET_ID_COMMON:
                     remote_router_address.net_id = common_address_id;
-                    populate_router_topology_set(msg, tc_addr_tuple, common_address_field, remote_router_address);
+                    populate_router_topology_set(msg, tc_msg.tc_addr_block, common_address_field, remote_router_address);
                     break;
 
                   /* If Node  ID is common then,
@@ -315,7 +353,7 @@ namespace ns_olsr2_0
                    * and adds router's unique id to net id */
                   case NODE_ID_COMMON:
                     remote_router_address.node_id = common_address_id;
-                    populate_router_topology_set(msg, tc_addr_tuple, common_address_field, remote_router_address);
+                    populate_router_topology_set(msg, tc_msg.tc_addr_block, common_address_field, remote_router_address);
                     break;
 
                   }
@@ -329,7 +367,9 @@ namespace ns_olsr2_0
             /* TBD - Left for future implementation */
             break;
           }
+#ifdef COMMENT_SECTION
       }
+#endif /* For loop closure */
 
   }
 

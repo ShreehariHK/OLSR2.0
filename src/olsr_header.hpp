@@ -27,8 +27,15 @@
 
 namespace ns_olsr2_0
 {
-#define M_HELLO_MSG_HEADER_LEN    14
-#define M_TC_MSG_HEADER_LEN       10
+#define M_MSG_COMMON_DATA_LEN    8
+
+  /* This function writes the 2bytes data to buffer*/
+  void write_u16 (T_UINT16 data, T_UINT8* ptr);
+
+  /* This function reads the 2bytes from buffer to data */
+  void read_u16(T_UINT8* ptr, T_UINT16& data);
+
+#ifdef COMMENT_SECTION
 
 class C_PACKET_HEADER
 {
@@ -61,6 +68,21 @@ private:
   std::array<T_UINT8, 512> serialised_buffer;
 
 };
+#endif
+
+typedef struct
+{
+    T_UINT8  msg_type;
+    T_UINT16 hello_msg_size;
+    T_UINT16 tc_msg_size;
+    T_UINT16 tcf_msg_size;
+}T_OLSR_PACKET_HEADER;
+
+typedef struct
+{
+    T_OLSR_PACKET_HEADER packet_header;
+    T_UINT8 olsr_msg_buffer[512];
+}T_OLSR_PACKET;
 
 class C_MESSAGE_HEADER
 {
@@ -157,7 +179,7 @@ class C_MESSAGE_HEADER
 		{
 		    T_UINT8 unique_id;                 /* net id or Node id*/
 		    U_COMMON_FIELD common_field;       /* Link state or neighbor address type */
-			std::array<float,M_TWO> metric;    /* metric[M_ONE] - In link metric and metric[M_ZERO] - out link metric */
+			std::array<T_UINT16,M_TWO> metric; /* metric[M_ONE] - In link metric and metric[M_ZERO] - out link metric */
 		}T_GENERIC_ADDR_BLOCK;
 
 		/*------------------------------------------------------------------
@@ -177,6 +199,12 @@ class C_MESSAGE_HEADER
 
             /* Finds  the size of the hello message */
             T_UINT16 get_hello_msg_size();
+
+            /* Serializes the Hello message */
+            void serialize(T_UINT8* buf, T_UINT16& index_value);
+
+            /* Deserializes the Hello message */
+            void deserialize(T_UINT8* buf, T_UINT16& index_value);
 		}T_HELLO;
 
 
@@ -203,10 +231,16 @@ class C_MESSAGE_HEADER
 		typedef struct
 		{
 		    T_UINT16 ansn;                                   /* Advertised neighbor sequence number*/
-		    std::vector<T_TC_ADDRESS_BLOCK> tc_addr_set;	 /* Stores a set of address blocks*/
-
+		    //std::vector<T_TC_ADDRESS_BLOCK> tc_addr_set;	 /* Stores a set of address blocks, It will be used for Attached net_info*/
+		    T_TC_ADDRESS_BLOCK tc_addr_block;
 		    /* Finds  the size of the tc message */
 		    T_UINT16 get_tc_msg_size();
+
+		    /* Serializes the Tc message */
+		    void serialize(T_UINT8* buf, T_UINT16& index_value);
+
+		    /* Deserializes the Tc message */
+		    void deserialize(T_UINT8* buf, T_UINT16& index_value);
 		}T_TC;
 
 		/**
@@ -214,16 +248,8 @@ class C_MESSAGE_HEADER
 		 */
 		typedef struct
 		{
-		    E_OLSR_MSG_TYPE m_message_type;         /* Message type of current OLSR instance */
-		    T_UINT16 m_msg_len;                     /* Message address length of current OLSR instance */
-		    T_NODE_ADDRESS m_originator_address;    /* Message originator address of current OLSR instance */
-            T_UINT8 m_time_to_live;                 /* Time to live of a message of current OLSR instance */
-            T_UINT8 m_hop_count;                    /* Hop count of a message of current OLSR instance */
-            T_UINT16 m_message_sequence_number;     /* Sequence number of a message of current OLSR instance */
-            T_UINT8 m_validity_time;                /* Validity time of a message of current OLSR instance */
-            T_UINT8 m_interval_time;                /* Interval time of a message of current OLSR instance */
-			T_HELLO hello;     					    /* Hello message */
-			T_TC tc;            					/* Topology control message */
+		    T_HELLO hello;     		/* Hello message */
+			T_TC tc;            	/* Topology control message */
 		}T_MESSAGE;
 
 	private:
@@ -233,6 +259,11 @@ class C_MESSAGE_HEADER
 
 	public:
 
+	  /* This function serialises the olsr message buffer */
+	  T_UINT32 serialize(T_UINT8* buffer, T_UINT16 index);
+
+      /* This function deserialises the olsr message buffer */
+	  void deserialize(E_OLSR_MSG_TYPE msg_type, T_UINT8* buffer, T_UINT16 index, T_UINT16 msg_size);
 
       /* Gets the Hello message received from neighbor and return the message content */
       const T_HELLO& get_hello() const;

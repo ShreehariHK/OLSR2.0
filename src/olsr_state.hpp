@@ -38,7 +38,7 @@ namespace ns_olsr2_0
     LinkSet m_link_set;                                             /* link set of current OLSR instance */
     TwoHopNeighborSet m_two_hop_neighbour_set;                      /* two hop neighbor set of current OLSR instance */
     NeighbourSet m_neighbour_set;                                   /* one hop neighbor set of current OLSR instance */
-
+    NeighbourSet m_routing_mpr_sel_set;
     AdvertisingRemoteRouterSet m_advertising_remote_router_set;     /* advertising remote router set of current OLSR instance */
 
     RouterTopologySet m_router_topology_set;                        /* router topology set of current OLSR instance */
@@ -134,7 +134,7 @@ namespace ns_olsr2_0
     T_BOOL check_is_routing_mpr_selector(const T_NODE_ADDRESS &address) const ;
 
     /* Gets Routing MPR selector set */
-    const NeighbourSet& get_routing_mpr_selector_set () const;
+    const NeighbourSet& get_routing_mpr_selector_set ();
 
     /* Checks if the address is a routing mpr selector*/
     T_BOOL check_is_flooding_mpr_selector(const T_NODE_ADDRESS &address) const ;
@@ -246,6 +246,9 @@ namespace ns_olsr2_0
 
     /* Finds the next routing node's address */
     E_ROUTE_STATUS find_next_routing_hop_addr(const T_ADDR* p_dest_addr, T_ADDR* p_rdest_addr);
+
+    /* Gets the complete routing table */
+    void get_network_topology_info(std::vector<T_NETWORK_TOPOLOGY_TUPLE>& topology_table);
 
   };
 

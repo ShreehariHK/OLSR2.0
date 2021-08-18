@@ -71,14 +71,14 @@ namespace ns_olsr2_0
     /* Sends OLSR packet to Gateway */
     void send_olsr_msg(void);
 
-    /* Receives OLSR packet from Gateway */
-    void recv_olsr(void* olsr_packet);
-
     /* Gets the next hop router to the destination(Unicast/Multicast) */
     E_ROUTE_STATUS get_routing_destination_address(const T_ADDR& Csrc, const T_ADDR& Dest, T_ADDR& RDest);
 
     /* Checks the address type of the node address(Unicast/Multicast) */
     E_DEST_ADDR_TYPE check_address_type(const T_ADDR& Dest);
+
+    /* Gets the network topolgy information */
+    T_TOPOLOGY_INFO get_topology_info();
 
     /* Finds the allowed 1-hop neighbor tuple for the given address */
     template <typename T>
@@ -224,8 +224,11 @@ namespace ns_olsr2_0
         m_instance = inst_type;
     }
 
+    /* Sends the queued serialised message to Gateway */
+    void send_queued_messages();
+
     /* Segregates OLSR messages and calls for processing */
-    void recv_olsr(const C_PACKET_HEADER, T_NODE_ADDRESS&, T_NODE_ADDRESS&, float);
+    void recv_olsr(const T_UINT8*, const T_NODE_ADDRESS&, const T_NODE_ADDRESS&, float);
 
     /* Prepares hello message and sends to the tx buffer */
     void send_hello(void);
@@ -252,7 +255,7 @@ namespace ns_olsr2_0
     void process_tc(const C_MESSAGE_HEADER&, const T_NODE_ADDRESS&);
 
     /* Forwards the TC messages received from Flooding mpr selectors*/
-    void forward_default(C_MESSAGE_HEADER, T_NODE_ADDRESS&);
+    void forward_default(C_MESSAGE_HEADER, const T_NODE_ADDRESS&);
 
     /* wrapper function for MPR Computation */
     void mpr_computation();
@@ -325,6 +328,14 @@ namespace ns_olsr2_0
 
     C_MESSAGE_HEADER::OlsrMsgList olsr_msg_list; /* OLSR messages list */
 
+    /* Encodes the floating value link metric to 2 bytes integer */
+    unsigned short
+    encode_metric_value(float data);
+
+    /* Decodes the 2 bytes link metric to float value */
+    float
+    decode_metric_value(unsigned short data);
+
     /* Initializes the OLSR main data members  */
     void init_op(ns_olsr2_0::E_OLSR_INSTANCE);
 
@@ -333,8 +344,6 @@ namespace ns_olsr2_0
 
     /* Sets the leader information of the network */
     void set_leader_info(C_MESSAGE_HEADER::T_HELLO& hello_msg, T_LEADER_TUPLE* leader_tuple);
-
-
 
     /* Sets the neighbor information to be added in Hello message */
     void set_neighbor_info(C_MESSAGE_HEADER::T_HELLO& hello_msg, Time cur_time);

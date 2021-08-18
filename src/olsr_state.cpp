@@ -420,21 +420,24 @@ namespace ns_olsr2_0
    * @note      None.
    ********************************************************************/
   const NeighbourSet&
-  C_OLSR_STATE::get_routing_mpr_selector_set () const
+  C_OLSR_STATE::get_routing_mpr_selector_set ()
   {
-    NeighbourSet routing_mpr_sel_set;
+    /* Clears the old roiting MPR selectors data */
+    m_routing_mpr_sel_set.clear();
 
      /* Loops through the 1-Hop neighbor set and fetches the
       * Routing MPRs of thi node*/
      for(NeighbourSet::const_iterator nbr_tuple_iter = m_neighbour_set.begin();
          nbr_tuple_iter != m_neighbour_set.end(); nbr_tuple_iter++)
        {
+
          if((nbr_tuple_iter->n_symmetric == true) and (nbr_tuple_iter->n_mpr_selector == true))
            {
-             routing_mpr_sel_set.push_back(*nbr_tuple_iter);
+             m_routing_mpr_sel_set.push_back(*nbr_tuple_iter);
            }
        }
-     return routing_mpr_sel_set;
+
+     return m_routing_mpr_sel_set;
 
   }
 
@@ -698,7 +701,7 @@ namespace ns_olsr2_0
 	   * If present then returns his address */
     if (m_leader_node.size () != M_ZERO)
       {
-        return &(m_leader_node.at (M_ZERO));
+        return &(m_leader_node.at(M_ZERO));
       }
     else
       {
@@ -815,6 +818,32 @@ namespace ns_olsr2_0
       }
 
     return route_state;
+
+  }
+
+  /********************************************************************
+   * @function  get_network_topology_info
+   * @brief     This function gets the complete routing table ans shares it.
+   * @param     [1] topology_table - Network topology table.
+   * @return    None.
+   * @note      None.
+   ********************************************************************/
+  void
+  C_OLSR_STATE::get_network_topology_info(std::vector<T_NETWORK_TOPOLOGY_TUPLE>& topology_table)
+  {
+    T_NETWORK_TOPOLOGY_TUPLE network_topology_tuple;
+    for(std::map<T_NODE_ADDRESS, T_ROUTING_TABLE_ENTRY>::const_iterator router_iter = m_routing_table.begin();
+        router_iter != m_routing_table.end(); router_iter++)
+      {
+        network_topology_tuple.dest_net_id = router_iter->second.r_dest_addr.net_id;
+        network_topology_tuple.dest_radio_addr = router_iter->second.r_dest_addr;
+        network_topology_tuple.next_hop_radio_id = router_iter->second.r_next_iface_addr.net_id;
+        network_topology_tuple.next_hop_radio_addr = router_iter->second.r_next_iface_addr;
+        network_topology_tuple.hop_count = router_iter->second.r_dist;
+        network_topology_tuple.lqi = router_iter->second.r_metric;
+
+        topology_table.push_back(network_topology_tuple);
+      }
 
   }
 
@@ -1150,9 +1179,8 @@ namespace ns_olsr2_0
         T_LINK_TUPLE loc_link_tup;
         T_NEIGHBOUR_TUPLE loc_nbr_tup;
 
-        loc_link_tup.l_mpr_selector = true;
         loc_link_tup.l_neighbor_iface_addr.net_id = 10;
-        loc_link_tup.l_neighbor_iface_addr.node_id = i + 5;
+        loc_link_tup.l_neighbor_iface_addr.node_id = i + 15;
         loc_link_tup.l_heard_time = i + 9;
         loc_link_tup.l_time = i + 9;
         loc_link_tup.l_sym_time = i + 9;
@@ -1165,29 +1193,31 @@ namespace ns_olsr2_0
             loc_link_tup.l_in_metric = 0.9;
             loc_link_tup.l_out_metric = 0.8;
             loc_link_tup.l_status = M_SYMMETRIC_LINK;
+            loc_link_tup.l_mpr_selector = true;
 
             loc_nbr_tup.n_flooding_mpr = false;
             loc_nbr_tup.n_routing_mpr = true;
-            loc_nbr_tup.n_advertised = true;
+            loc_nbr_tup.n_advertised = false;
             loc_nbr_tup.n_in_metric = loc_link_tup.l_in_metric;
             loc_nbr_tup.n_out_metric = loc_link_tup.l_out_metric;
-            loc_nbr_tup.n_mpr_selector = true;
+            loc_nbr_tup.n_mpr_selector = false;
             loc_nbr_tup.n_symmetric = true;
             loc_nbr_tup.n_willingness.willingness = 0x33;
 
           }
         else
           {
+            loc_link_tup.l_mpr_selector = false;
             loc_link_tup.l_in_metric = 0.6;
             loc_link_tup.l_out_metric = 0.9;
             loc_link_tup.l_status = M_SYMMETRIC_LINK;
 
             loc_nbr_tup.n_flooding_mpr = true;
             loc_nbr_tup.n_routing_mpr = false;
-            loc_nbr_tup.n_advertised = false;
+            loc_nbr_tup.n_advertised = true;
             loc_nbr_tup.n_in_metric = loc_link_tup.l_in_metric;
             loc_nbr_tup.n_out_metric = loc_link_tup.l_out_metric;
-            loc_nbr_tup.n_mpr_selector = false;
+            loc_nbr_tup.n_mpr_selector = true;
             loc_nbr_tup.n_symmetric = true;
             loc_nbr_tup.n_willingness.willingness = 0x32;
 

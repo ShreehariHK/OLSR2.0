@@ -65,7 +65,10 @@ namespace ns_olsr2_0
 #define M_ZERO 			   0x0	  /* value is Zero */
 #define M_ONE			   0x1    /* value is One */
 #define M_TWO			   0x2    /* value id Two */
+#define M_SIX              0x6    /* value id six */
 
+#define M_ROUTER_INFO_SIZE 0x6    /* Size of Each router info */
+#define M_INSUFFICIENT_TC_MSG 17  /* 17 bytes are just TC message generic info except topology info */
 
 typedef long long int Time;
 
@@ -105,7 +108,8 @@ typedef enum
 typedef enum
 {
     HELLO_MESSAGE = 0x1,      /* Hello Message */
-    TC_MESSAGE = 0x2          /* Topology control Message */
+    TC_MESSAGE = 0x2,         /* Topology control Message */
+    TC_FORWARDED = 0x4        /* Forwarded Topology Control Message */
 }E_OLSR_MSG_TYPE;
 
 /**
@@ -139,6 +143,7 @@ typedef enum
   WILL_HIGH = 0X3,
   WILL_ALWAYS = 0X4
 }E_WILLINGNESS;
+
 
 /**
  * Holds the 2 types of node willingness
@@ -231,6 +236,30 @@ operator < (const T_NODE_ADDRESS& addr_a, const T_NODE_ADDRESS& addr_b)
 {
   return((addr_a.net_id < addr_b.net_id) and (addr_a.node_id < addr_b.node_id));
 }
+
+/*
+ * Stores destination information
+ */
+typedef struct
+{
+  T_UINT8 dest_net_id;          /* Net Id of destination node */
+  T_UINT8 next_hop_radio_id;    /* Net Id of next hop node */
+  T_NODE_ADDRESS dest_radio_addr;     /* Address of destination node */
+  T_NODE_ADDRESS next_hop_radio_addr; /* Address of next hop node */
+  T_UINT8 hop_count;            /* Hop count to destination node*/
+  T_UINT16 lqi;                 /* link metric value to  destination node*/
+}T_NETWORK_TOPOLOGY_TUPLE;
+
+/*
+ * Stores network topology information
+ */
+typedef struct
+{
+  std::vector<T_NETWORK_TOPOLOGY_TUPLE> payload;    /* Network Topology Table */
+  T_UINT16 payload_length;                          /* size of Network Topology Table */
+  T_UINT8 message_id;                               /* Message id */
+  T_UINT8 checksum;                                 /* Checksum of topology info */
+}T_TOPOLOGY_INFO;
 
 /**
  * Holds Leader address tuple

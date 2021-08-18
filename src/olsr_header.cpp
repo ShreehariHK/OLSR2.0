@@ -23,7 +23,41 @@
 
 namespace ns_olsr2_0
 {
+  /********************************************************************
+   * @function  write_u16
+   * @brief     This function Adds the 2 bytes data to given buffer.
+   * @param     [1] data = 2 bytes data.
+   *            [2] ptr - pointer to buffer
+   * @return    None.
+   * @note      None.
+  ********************************************************************/
+  void
+  write_u16 (T_UINT16 data, T_UINT8* ptr)
+  {
+    std::cout << "data = " << data << std::endl;
 
+    *ptr++ = ((data >> 8) & 0xff);
+
+    *ptr++ = (data & 0xff);
+  }
+
+  /********************************************************************
+   * @function  read_u16
+   * @brief     This function Adds the 2 bytes to data read from buffer.
+   * @param     [1] ptr - pointer to buffer.
+   *            [2] data = 2 bytes data.
+   * @return    None.
+   * @note      None.
+  ********************************************************************/
+  void
+  read_u16(T_UINT8* ptr, T_UINT16& data)
+  {
+    data = ((*ptr++ & 0xff) << 8);
+    data |= (*ptr++ & 0xff);
+
+    //std::cout << "data = " << data << std::endl;
+  }
+#ifdef COMMENT_SECTION
   /********************************************************************
    * @function  C_PACKET_HEADER
    * @brief     This function is the constructor of C_PACKET_HEADER.
@@ -95,6 +129,7 @@ namespace ns_olsr2_0
   {
       return m_packet_type;
   }
+#endif
 
   /********************************************************************
    * @function  C_MESSAGE_HEADER
@@ -350,7 +385,7 @@ namespace ns_olsr2_0
   {
    /* Checks if the received message is Tc.
     * If true then returns the Tc message*/
-   if (m_message_type == TC_MESSAGE)
+   if ((m_message_type == TC_MESSAGE) or (m_message_type == TC_FORWARDED))
    {
      return m_message.tc;
    }
@@ -426,7 +461,7 @@ namespace ns_olsr2_0
      * 40 otherwise */
     if(msg_type == E_OLSR_MSG_TYPE::HELLO_MESSAGE)
       {
-        this->set_time_to_live(M_ONE);
+        this->set_time_to_live(15);
         this->set_validity_time(M_HELLO_MSG_VALID__TIME);
         this->set_interval_time(M_HELLO_INTERVAL);
 
@@ -438,12 +473,10 @@ namespace ns_olsr2_0
         this->set_interval_time(M_TC_INTERVAL);
       }
 
-    this->set_hop_count(M_ZERO);
+    this->set_hop_count(25);
     set_message_sequence_number(msg_seq_num);
 
-
-
-
+    std::cout << "Set m_message_sequence_number = " << msg_seq_num << std::endl;
 
   }
 
@@ -456,11 +489,113 @@ namespace ns_olsr2_0
   ********************************************************************/
   T_UINT16 C_MESSAGE_HEADER::T_HELLO::get_hello_msg_size()
     {
+      T_UINT16 size = 10; /*2bytes-Unused,  6bytes-From abf to common id, 2bytes-Size of neighbor set*/
 
-      T_UINT16 size = this->neighbor_set.size();
-      return (size * 6);
+      size += (this->neighbor_set.size() * 6);
+
+      return size;
 
     }
+
+  /********************************************************************
+   * @function  serialise
+   * @brief     Serialises the given Hello message
+   * @param     [1] ptr - Pointer to the serialised buffer.
+   * @return    None.
+   * @note      None.
+  ********************************************************************/
+  void
+  C_MESSAGE_HEADER::T_HELLO::serialize(T_UINT8* buf, T_UINT16& index_value)
+  {
+      write_u16(M_ZERO, &buf[index_value]); //Unused Bits
+      index_value += M_TWO;
+
+      buf[index_value++] = this->node_willingness.willingness;
+
+      buf[index_value++] = this->leader_info.is_leader;
+
+      write_u16((T_UINT16&)this->leader_info.leader_addr, &buf[index_value]);
+      index_value += M_TWO;
+
+      buf[index_value++] = this->abf;
+
+      buf[index_value++] = this->common_id;
+
+      write_u16((M_SIX + (neighbor_set.size() * M_ROUTER_INFO_SIZE)), &buf[index_value]);
+      index_value += M_TWO;
+
+      std::cout << "neighbor info size= " << (M_SIX + (neighbor_set.size() * M_ROUTER_INFO_SIZE)) << std::endl;
+
+      for(std::vector<T_GENERIC_ADDR_BLOCK>::const_iterator hello_iter = this->neighbor_set.begin();
+          hello_iter != this->neighbor_set.end(); hello_iter++)
+      {
+          buf[index_value++] = hello_iter->unique_id;
+          buf[index_value++] = hello_iter->common_field.link_state.type;
+          write_u16(hello_iter->metric[M_ZERO], &buf[index_value]);
+          index_value += M_TWO;
+          write_u16(hello_iter->metric[M_ONE], &buf[index_value]);
+          index_value += M_TWO;
+
+      }
+
+  }
+
+  /********************************************************************
+   * @function  deserialise
+   * @brief     This function deserialises the given TC message.
+   * @param     [1] ptr - Pointer to the given Serialised buffer.
+   *            [2] hello_msg - Hello message
+   * @return    None.
+   * @note      None.
+  ********************************************************************/
+  void
+  C_MESSAGE_HEADER::T_HELLO::deserialize(T_UINT8* buf, T_UINT16& index_value)
+  {
+      T_UINT16 reserved_bits = M_ZERO;
+      T_UINT16 neighbor_info_size = M_ZERO;
+      read_u16(&buf[index_value], reserved_bits); //Unused Bits
+      index_value += M_TWO;
+
+
+      this->node_willingness.willingness = (T_UINT8)buf[index_value++];
+      std::cout << "Message flood willingness = " << this->node_willingness.fields.flood_will << std::endl;
+      std::cout << "Message Route willingness = " << this->node_willingness.fields.route_will << std::endl;
+
+      this->leader_info.is_leader = (T_BOOL)buf[index_value++];
+      std::cout << "Is Leader  = " << this->leader_info.is_leader << std::endl;
+
+      read_u16(&buf[index_value], (T_UINT16&)this->leader_info.leader_addr);
+      index_value += M_TWO;
+
+      this->abf = (E_ADDRESS_BLOCK_FLAGS)buf[index_value++];
+      std::cout << "Message abf = " << this->abf << std::endl;
+
+      this->common_id = (T_UINT8)buf[index_value++];
+      std::cout << "Message Common id = " << this->common_id << std::endl;
+
+      read_u16(&buf[index_value], neighbor_info_size);
+      index_value += M_TWO;
+
+      std::cout << "neighbor info size= " << neighbor_info_size << std::endl;
+
+      while((neighbor_info_size - M_SIX) > M_ZERO)
+      {
+          for(T_UINT8 neighb_iter = ((neighbor_info_size-M_SIX)/M_ROUTER_INFO_SIZE); neighb_iter > M_ZERO; neighb_iter--)
+          {
+              T_GENERIC_ADDR_BLOCK hello_block;
+              hello_block.unique_id = (T_UINT8)buf[index_value++];
+              hello_block.common_field.link_state.type = (T_UINT8)buf[index_value++];
+              read_u16(&buf[index_value], hello_block.metric[M_ZERO]);
+              index_value += M_TWO;
+              read_u16(&buf[index_value], hello_block.metric[M_ONE]);
+              index_value += M_TWO;
+              this->neighbor_set.push_back(hello_block);
+              std::cout << "Neighbor= " << neighb_iter << std::endl;
+              neighbor_info_size -= M_ROUTER_INFO_SIZE;
+          }
+      }
+
+  }
 
   /********************************************************************
    * @function  get_tc_msg_size
@@ -471,16 +606,224 @@ namespace ns_olsr2_0
   ********************************************************************/
   T_UINT16 C_MESSAGE_HEADER::T_TC::get_tc_msg_size()
     {
-      T_UINT16 size = M_ZERO;
+      T_UINT16 size = 9; /*2bytes-Unused,  6bytes-From ansn to common id, 2 bytes-Size of neighbor set*/
 
-      for(std::vector<T_TC_ADDRESS_BLOCK>::const_iterator it = this->tc_addr_set.begin(); it != tc_addr_set.end(); it++)
+#ifdef COMMENT_SECTION
+      for(std::vector<T_TC_ADDRESS_BLOCK>::const_iterator it = this->tc_addr_block.begin(); it != tc_addr_block.end(); it++)
         {
           size += ((it->network_info.size() * 6) + 3);
         }
-
+#endif
+      size += (tc_addr_block.network_info.size() * M_SIX);
       return size;
 
     }
+
+  /********************************************************************
+   * @function  serialise
+   * @brief     This function serialises the given TC message.
+   * @param     [1] ptr - Pointer to the given Serialised buffer.
+   * @return    None.
+   * @note      None.
+  ********************************************************************/
+  void
+  C_MESSAGE_HEADER::T_TC::serialize(T_UINT8* buf, T_UINT16& index_value)
+  {
+      write_u16(M_ZERO, &buf[index_value]); //Unused Bits
+      index_value += M_TWO;
+
+      write_u16(this->ansn, &buf[index_value]);
+      index_value += M_TWO;
+
+      //WriteU16((tc_addr_set.size() * (5+(tc_addr_iter->network_info.size() * 6))), ptr);
+
+      buf[index_value++] = (T_UINT8)this->tc_addr_block.tc_msg_type;
+      buf[index_value++] = (T_UINT8)this->tc_addr_block.abf;
+      buf[index_value++] = (T_UINT8)this->tc_addr_block.common_id;
+
+      write_u16((M_SIX +(this->tc_addr_block.network_info.size() * M_ROUTER_INFO_SIZE)), &buf[index_value]);
+      index_value += M_TWO;
+
+      for(std::vector<T_GENERIC_ADDR_BLOCK>::const_iterator topo_iter = this->tc_addr_block.network_info.begin();
+          topo_iter != this->tc_addr_block.network_info.end(); topo_iter++)
+          {
+              buf[index_value++] = (T_UINT8)topo_iter->unique_id;
+              buf[index_value++] = (T_UINT8)topo_iter->common_field.hop_count;
+              write_u16(topo_iter->metric[M_ZERO], &buf[index_value]);
+              index_value += M_TWO;
+              write_u16(topo_iter->metric[M_ONE], &buf[index_value]);
+              index_value += M_TWO;
+
+          }
+  }
+
+  /********************************************************************
+   * @function  deserialise
+   * @brief     This function deserialises the given TC message.
+   * @param     [1] buf - Pointer to the given Serialised buffer.
+   *            [2] index_value - Index to the buffer index
+   * @return    None.
+   * @note      None.
+  ********************************************************************/
+  void
+  C_MESSAGE_HEADER::T_TC::deserialize(T_UINT8* buf, T_UINT16& index_value)
+  {
+      T_UINT16 reserved_bits = M_ZERO;
+      T_UINT16 topology_info_size = M_ZERO;
+
+      read_u16(&buf[index_value], reserved_bits); //Unused Bits
+      index_value += M_TWO;
+
+      read_u16(&buf[index_value], this->ansn);
+      index_value += M_TWO;
+
+      //WriteU16((tc_addr_set.size() * (5+(tc_addr_iter->network_info.size() * 6))), ptr);
+
+      this->tc_addr_block.tc_msg_type = (E_TC_ADDRESS_TYPE)buf[index_value++];
+      this->tc_addr_block.abf = (E_ADDRESS_BLOCK_FLAGS)buf[index_value++];
+      this->tc_addr_block.common_id = (T_UINT8)buf[index_value++];
+
+      read_u16(&buf[index_value],topology_info_size);
+      index_value += M_TWO;
+
+      while((topology_info_size - M_SIX) > M_ZERO)
+      {
+          for(T_UINT8 topo_iter = (topology_info_size-M_SIX/M_ROUTER_INFO_SIZE); topo_iter > M_ZERO; topo_iter--)
+          {
+              T_GENERIC_ADDR_BLOCK tc_block;
+              tc_block.unique_id = (T_UINT8)buf[index_value++];
+              tc_block.common_field.hop_count = (T_UINT8)buf[index_value++];
+              read_u16(&buf[index_value], tc_block.metric[M_ZERO]);
+              index_value += M_TWO;
+              read_u16(&buf[index_value], tc_block.metric[M_ONE]);
+              index_value += M_TWO;
+              this->tc_addr_block.network_info.push_back(tc_block);
+              topology_info_size -= M_ROUTER_INFO_SIZE;
+          }
+      }
+  }
+
+  /********************************************************************
+   * @function  serialise
+   * @brief     This function serialises the given OLSR message.
+   * @param     [index] = pointer to the serialised buffer.
+   * @return    None.
+   * @note      None.
+  ********************************************************************/
+  T_UINT32
+  C_MESSAGE_HEADER::serialize(T_UINT8* buffer, T_UINT16 index)
+  {
+      T_UINT16 start_address = index;
+      T_UINT16 end_address = 0;
+
+      std::cout << "Start address = " << start_address << std::endl;
+      //T_UINT8* index = &Buffer[0];
+
+      //index++ = this->m_message_type;
+
+      //write_u16(this->m_msg_len, index);
+
+      //buffer[index++] = this->m_originator_address.net_id;
+          //buffer[index++] =this->m_originator_address.node_id
+      write_u16((T_UINT16&)this->m_originator_address, &buffer[index]);
+      index += M_TWO;
+
+      buffer[index++] = (T_UINT8)this->m_time_to_live;
+
+      buffer[index++] = (T_UINT8)this->m_hop_count;
+
+      write_u16(this->m_message_sequence_number, &buffer[index]);
+      index += M_TWO;
+
+      std::cout << "Message m_message_sequence_number = " << this->m_message_sequence_number << std::endl;
+
+      buffer[index++] = (T_UINT8)this->m_validity_time;
+
+      buffer[index++] = (T_UINT8)this->m_interval_time;
+
+      switch(this->m_message_type)
+      {
+          case HELLO_MESSAGE:
+          this->m_message.hello.serialize(buffer, index);
+          break;
+
+          case TC_MESSAGE:
+          this->m_message.tc.serialize(buffer, index);
+          break;
+
+          default:
+          break;
+
+      }
+      end_address = index - start_address;
+      std::cout << "End address = " << index << std::endl;
+      std::cout << "hello message size diff = " << end_address << std::endl;
+
+      return end_address;
+  }
+
+  /********************************************************************
+   * @function  deserialise
+   * @brief     This function deserialises the given OLSR message.
+   * @param     [1] msg_header = Olsr message.
+   *            [2] msg_type - HELLO/TC/TC_FORWARDED
+   *            [3] buf_iter - Pointer to buffer
+   *            [4] msg_size - Size of the message
+   * @return    None.
+   * @note      None.
+  ********************************************************************/
+  void
+  C_MESSAGE_HEADER::deserialize(E_OLSR_MSG_TYPE msg_type, T_UINT8* buffer, T_UINT16 index, T_UINT16 msg_size)
+  {
+      if(buffer != NULL)
+      {
+          this->m_message_type = msg_type;
+          std::cout << "Message type = " << this->m_message_type << std::endl;
+          this->m_msg_len = msg_size;
+
+          read_u16(&buffer[index], (T_UINT16&)this->m_originator_address);
+          index += M_TWO;
+
+          std::cout << "Message net id = " << this->m_originator_address.net_id << std::endl;
+
+          std::cout << "Message node id = " << this->m_originator_address.node_id << std::endl;
+
+          this->m_time_to_live = buffer[index++];
+          std::cout << "Message TTL = " << this->m_time_to_live << std::endl;
+
+          this->m_hop_count = buffer[index++];
+          std::cout << "Message hop count = " << this->get_hop_count() << std::endl;
+
+          read_u16(&buffer[index], this->m_message_sequence_number);
+          index += M_TWO;
+          std::cout << "Message m_message_sequence_number = " << this->m_message_sequence_number << std::endl;
+
+          this->m_validity_time = buffer[index++];
+          std::cout << "Message m_validity_time = " << this->m_validity_time << std::endl;
+
+          this->m_interval_time = buffer[index++];
+          std::cout << "Message Interval time = " << this->get_interval_time() << std::endl;
+
+
+          switch(this->m_message_type)
+          {
+              case HELLO_MESSAGE:
+              this->m_message.hello.deserialize(buffer, index);
+              break;
+
+              case TC_MESSAGE:
+              case TC_FORWARDED:
+              this->m_message.tc.deserialize(buffer, index);
+              break;
+
+              default:
+              break;
+
+          }
+      }
+
+
+  }
 
   /********************************************************************
    * @function  get_msg_size
@@ -498,12 +841,13 @@ namespace ns_olsr2_0
     {
       /* If its a Hello message then adds hello message size with Hello message header length*/
       case HELLO_MESSAGE:
-        size += (this->m_message.hello.get_hello_msg_size() + M_HELLO_MSG_HEADER_LEN);
+        size += (this->m_message.hello.get_hello_msg_size() + M_MSG_COMMON_DATA_LEN);
         break;
 
        /* If its a Hello message then adds Tc message size with Tc message header length*/
       case TC_MESSAGE:
-        size += (this->m_message.tc.get_tc_msg_size() + M_TC_MSG_HEADER_LEN);
+           TC_FORWARDED:
+        size += (this->m_message.tc.get_tc_msg_size() + M_MSG_COMMON_DATA_LEN);
         break;
 
       default:

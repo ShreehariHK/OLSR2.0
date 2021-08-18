@@ -21,6 +21,7 @@
 #include <iostream>
 
 #include "olsr.hpp"
+#include <cmath>
 
 using namespace std;
 
@@ -77,6 +78,8 @@ namespace ns_olsr2_0
           this->m_state.init_state_tuples();
 
           cout << "OLSR Operational State = " << this->get_op_state() << endl;
+
+         this->set_message_sequence_number(M_ZERO);
 
           this->init_op(instance_type);
 
@@ -243,6 +246,33 @@ namespace ns_olsr2_0
   }
 
   /********************************************************************
+      * @function  encode_metric_value
+      * @brief     This function encodes the float data to 2 bytes
+      * @param     [1] data - Floating value of link mettric
+      * @return    Link metric value in two bytes.
+      * @note      None.
+  ********************************************************************/
+  unsigned short
+  C_OLSR::encode_metric_value(float data)
+  {
+    return(data * 100);
+  }
+
+  /********************************************************************
+      * @function  decode_metric_value
+      * @brief     This function encodes the float data to 2 bytes
+      * @param     [1] data - Two bytes value of link mettric
+      * @return    Link metric value in float.
+      * @note      None.
+  ********************************************************************/
+  float
+  C_OLSR::decode_metric_value(unsigned short data)
+  {
+    return(data / 100);
+  }
+
+
+  /********************************************************************
       * @function  check_address_type
       * @brief     This function checks the nodes' address type
       * @param     [1] p_dest_addr - Destination node address
@@ -333,6 +363,7 @@ template <typename T>
     if((leader_tuple != NULL) and (leader_tuple->is_leader == true))
     {
       /* Adds leader_tuple to hello message*/
+      hello_msg.leader_info.is_leader = true;
       hello_msg.leader_info = *leader_tuple;
       cout << "Leader node set in Hello message" << endl;
     }
@@ -340,6 +371,8 @@ template <typename T>
     {
       /* Sets the is_leader flag to false */
       hello_msg.leader_info.is_leader = false;
+      hello_msg.leader_info.leader_addr.net_id = 0xff;
+      hello_msg.leader_info.leader_addr.node_id = 0xff;
       cout << "Leader node not set in Hello message" << endl;
     }
   }
@@ -496,8 +529,8 @@ template <typename T>
 
     new_two_hop_tuple.n2_2hop_addr = neighb_addr;
     new_two_hop_tuple.n2_neighbor_iface_addr = msg.get_originator_address();
-    new_two_hop_tuple.n2_in_metric = neighb_info.metric[1];
-    new_two_hop_tuple.n2_out_metric =neighb_info.metric[0];
+    new_two_hop_tuple.n2_in_metric = decode_metric_value(neighb_info.metric[1]);
+    new_two_hop_tuple.n2_out_metric = decode_metric_value(neighb_info.metric[0]);
     new_two_hop_tuple.n2_time = get_ns() + msg.get_validity_time();
     return new_two_hop_tuple;
   }
@@ -553,7 +586,7 @@ template <typename T>
     new_tuple.tr_from_orig_addr = msg.get_originator_address();
     new_tuple.tr_to_orig_addr = router_addr;
     new_tuple.tr_seq_number = msg.get_message_sequence_number();
-    new_tuple.tr_metric = remote_router.metric[0];
+    new_tuple.tr_metric = decode_metric_value(remote_router.metric[0]);
     /* Adds the current time to message validity time and adds it to new router topology tuple*/
     new_tuple.tr_time = get_ns() + msg.get_validity_time();
     return new_tuple;
@@ -748,8 +781,8 @@ template <typename T>
                 else
                   {
                     two_hop_tuple->n2_time = get_ns() + p_olsr_msg.get_validity_time();
-                    two_hop_tuple->n2_in_metric = hello_neighb_iter->metric[1];
-                    two_hop_tuple->n2_out_metric = hello_neighb_iter->metric[0];
+                    two_hop_tuple->n2_in_metric = decode_metric_value(hello_neighb_iter->metric[1]);
+                    two_hop_tuple->n2_out_metric = decode_metric_value(hello_neighb_iter->metric[0]);
                   }
               }
             else
@@ -810,7 +843,7 @@ template <typename T>
         if (router_topology_tuple != NULL)
           {
             router_topology_tuple->tr_time = rcvd_msg.get_validity_time ();
-            router_topology_tuple->tr_metric = topology_iter->metric[0];
+            router_topology_tuple->tr_metric = decode_metric_value(topology_iter->metric[0]);
           }
         /* If the tuple is nor present then creates a new
          * Router topology tuple and adds it to the Router topology set */
@@ -851,8 +884,8 @@ template <typename T>
         if((link_tuple.l_in_metric != M_UNKNOWN_VALUE) and
         		(link_tuple.l_out_metric != M_UNKNOWN_VALUE))
           {
-            nbr_addr_block.metric[M_ONE] = link_tuple.l_in_metric;
-            nbr_addr_block.metric[M_ZERO] = link_tuple.l_out_metric;
+            nbr_addr_block.metric[M_ONE] = encode_metric_value(link_tuple.l_in_metric);
+            nbr_addr_block.metric[M_ZERO] = encode_metric_value(link_tuple.l_out_metric);
 
             /* If the symmetric time of the link tuple is greater than
              * or equal to current time, then set link type to Symmetric */
@@ -936,6 +969,7 @@ template <typename T>
           }
 
       }
+    cout << "neighbor set size = " << hello_msg.neighbor_set.size() * 6 << endl;
   }
 
   /********************************************************************
@@ -1899,20 +1933,20 @@ int main()
 
 	cout << "!!!Hello World!!!" << endl; // prints !!!Hello World!!!
 
-	ns_olsr2_0::C_OLSR Normal_Node_Olsr;
+    ns_olsr2_0::C_OLSR Normal_Node_Olsr;
 	ns_olsr2_0::C_OLSR Leader_Node_Olsr;
 
 	Normal_Node_Olsr.init(ns_olsr2_0::E_OLSR_INSTANCE::NORMAL_NODE_INSTANCE);
 
 	Leader_Node_Olsr.init(ns_olsr2_0::E_OLSR_INSTANCE::LEADER_NODE_INSTANCE);
 
-	cout << "Size of olsr msg header class " << sizeof(ns_olsr2_0::C_MESSAGE_HEADER) << endl;
+	//cout << "Size of olsr msg header class " << sizeof(ns_olsr2_0::C_MESSAGE_HEADER) << endl;
 
-    Normal_Node_Olsr.mpr_computation();
-    Normal_Node_Olsr.routing_table_computation();
+    //Normal_Node_Olsr.mpr_computation();
+    //Normal_Node_Olsr.routing_table_computation();
 
-	Normal_Node_Olsr.send_hello();
-
+	//Normal_Node_Olsr.send_hello();
+	Normal_Node_Olsr.send_tc();
 
 	//Leader_Node_Olsr.send_hello();
 

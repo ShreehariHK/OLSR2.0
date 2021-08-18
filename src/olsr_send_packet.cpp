@@ -14,6 +14,87 @@ using namespace std;
 namespace ns_olsr2_0
 {
 
+  /********************************************************************
+      * @function  send_Queued_messages
+      * @brief     This function sends the serialised message to Gateway.
+      * @param
+      * @return    None.
+      * @note      None.
+  ********************************************************************/
+  void
+  C_OLSR::send_queued_messages()
+  {
+    T_NODE_ADDRESS recv_neighb_addr = {10,10};
+    T_NODE_ADDRESS send_neighb_addr = {10,15};
+      T_OLSR_PACKET olsr_packet = {0};
+
+      T_UINT16 size_occupied = 0;
+      for(C_MESSAGE_HEADER::OlsrMsgList::iterator itr= olsr_msg_list.begin(); itr != olsr_msg_list.end();)
+      {
+          if(itr->get_message_type() == HELLO_MESSAGE)
+          {
+              cout << "Hello message serialisation begin" << endl;
+              olsr_packet.packet_header.msg_type |= HELLO_MESSAGE;
+              size_occupied += itr->serialize(olsr_packet.olsr_msg_buffer, size_occupied);
+              olsr_packet.packet_header.hello_msg_size = size_occupied;
+
+              itr = olsr_msg_list.erase(itr);
+              cout << "Hello message serialisation end" << endl;
+              break;
+          }
+          else
+          {
+              itr++;
+          }
+
+      }
+
+      for(C_MESSAGE_HEADER::OlsrMsgList::iterator itr= olsr_msg_list.begin(); itr != olsr_msg_list.end();)
+      {
+          if((itr->get_message_type() == TC_MESSAGE) and ((itr->get_msg_size() + 3) < (512 - size_occupied)))
+          {
+              cout << "Tc message serialisation begin" << endl;
+              olsr_packet.packet_header.msg_type |= TC_MESSAGE;
+              size_occupied += itr->serialize(olsr_packet.olsr_msg_buffer, size_occupied);
+              olsr_packet.packet_header.tc_msg_size = size_occupied - olsr_packet.packet_header.hello_msg_size;
+
+              itr = olsr_msg_list.erase(itr);
+              cout << "TC message serialisation end" << endl;
+              break;
+          }
+          else
+          {
+              itr++;
+          }
+
+      }
+
+      for(C_MESSAGE_HEADER::OlsrMsgList::iterator itr= olsr_msg_list.begin(); itr != olsr_msg_list.end();)
+      {
+          if((itr->get_message_type() == TC_FORWARDED) and ((itr->get_msg_size() + 3) < (512 - size_occupied)))
+          {
+              cout << "Tc forwarded message serialisation begin" << endl;
+              olsr_packet.packet_header.msg_type |= TC_FORWARDED;
+              size_occupied += itr->serialize(olsr_packet.olsr_msg_buffer, size_occupied);
+              olsr_packet.packet_header.tcf_msg_size = olsr_packet.packet_header.hello_msg_size + olsr_packet.packet_header.tc_msg_size;
+
+              itr = olsr_msg_list.erase(itr);
+              cout << "TC forwarded message serialisation end" << endl;
+              break;
+          }
+          else
+          {
+              itr++;
+          }
+
+      }
+
+      cout << "Size of buffer =" << size_occupied << endl;
+
+      //transmit(olsr_packet, OLSR_MSG);
+      float met = 0.9;
+      recv_olsr((T_UINT8*)&olsr_packet, send_neighb_addr, recv_neighb_addr, met);
+  }
 
 /********************************************************************
     * @function  send_hello
@@ -64,18 +145,13 @@ namespace ns_olsr2_0
 
      msg.set_message_length(msg.get_msg_size());
 
+     cout << "size of total hello message = " << msg.get_message_length() << endl;
+
    olsr_msg_list.push_back(msg);
 
-   unsigned char list[255];
+   send_queued_messages();
 
 
-   std::memcpy(list, &msg, sizeof(C_MESSAGE_HEADER));
-
-   C_MESSAGE_HEADER recv_msg;
-
-   std::memcpy(&recv_msg, list, sizeof(C_MESSAGE_HEADER));
-
-   cout << "received message type " << recv_msg.get_message_type() << endl;
 
    }
 
@@ -89,7 +165,7 @@ namespace ns_olsr2_0
     ********************************************************************/
    void C_OLSR::send_tc(void)
    {
-       //this->m_state.fill_tuples();
+       this->m_state.fill_tuples();
 
        C_MESSAGE_HEADER msg;
 
@@ -123,10 +199,10 @@ namespace ns_olsr2_0
        }
 
 
-
-       for (NeighbourSet::const_iterator mprsel_tuple = m_state.get_routing_mpr_selector_set().begin ();
-             mprsel_tuple != m_state.get_routing_mpr_selector_set().end (); mprsel_tuple++)
+       for (NeighbourSet::const_iterator mprsel_tuple = m_state.get_routing_mpr_selector_set().begin();
+             mprsel_tuple != m_state.get_routing_mpr_selector_set().end(); mprsel_tuple++)
           {
+           cout << "Router MPR finding begin" << endl;
            C_MESSAGE_HEADER::T_GENERIC_ADDR_BLOCK tc_net_info;
 
              /* If the olsr instance is not a leader then,
@@ -142,16 +218,28 @@ namespace ns_olsr2_0
              }
 
              /* Adds the out metric to Tc net info */
-             tc_net_info.metric[0] = mprsel_tuple->n_out_metric;
+             tc_net_info.metric[0] = encode_metric_value(mprsel_tuple->n_out_metric);
 
              tc_addr_block.network_info.push_back(tc_net_info);
 
            }
-       tc_msg.tc_addr_set.push_back(tc_addr_block);
+       tc_msg.tc_addr_block = tc_addr_block;
 
        msg.set_message_length(msg.get_msg_size());
 
-       olsr_msg_list.push_back(msg);
+       if(msg.get_message_length() > M_INSUFFICIENT_TC_MSG)
+         {
+           olsr_msg_list.push_back(msg);
+           cout << "TC message is complete" << endl;
+         }
+       else
+         {
+           cout << "TC message is not complete" << endl;
+         }
+
+
+
+       send_queued_messages();
 
 
    }
@@ -165,7 +253,7 @@ namespace ns_olsr2_0
     * @return    None.
     * @note      None.
     ********************************************************************/
-   void C_OLSR::forward_default(C_MESSAGE_HEADER message, T_NODE_ADDRESS& p_sender_iface)
+   void C_OLSR::forward_default(C_MESSAGE_HEADER message, const T_NODE_ADDRESS& p_sender_iface)
    {
 
 	 /* Checks if the Time to Live field of the OLSR TC message is greater than 1 */
