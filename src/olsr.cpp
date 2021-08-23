@@ -1107,7 +1107,7 @@ template <typename T>
         T_N1 new_n1_tuple;
         new_n1_tuple.one_hop_neighb_addr = allowed_one_hop_iter->one_hop_neighb_addr;
         new_n1_tuple.neighb_will = allowed_one_hop_iter->n_willingness;
-        new_n1_tuple.d1 = allowed_one_hop_iter->in_out_metric;
+        new_n1_tuple.deg_this_one_hop_neighb = allowed_one_hop_iter->in_out_metric;
 
         p_neighbor_graph->n1_set.push_back(new_n1_tuple);
       }
@@ -1168,8 +1168,8 @@ template <typename T>
               T_MATRIX new_matrix;
 
               new_matrix.two_hop_neighb_addr = allowed_two_hop_iter->two_hop_neighb_addr;
-              new_matrix.d2 = allowed_two_hop_iter->in_out_metric;
-              new_matrix.d = n1_iter->d1 + new_matrix.d2;
+              new_matrix.deg_one_two_hop_neighb = allowed_two_hop_iter->in_out_metric;
+              new_matrix.total_degree = n1_iter->deg_this_one_hop_neighb + new_matrix.deg_one_two_hop_neighb;
 #ifdef COMMENT_SECTION
               n1_iter->matrix_set.insert({allowed_two_hop_iter->two_hop_neighb_addr, new_matrix});
 #endif
@@ -1216,7 +1216,7 @@ template <typename T>
 
                 std::vector<T_MATRIX>::const_iterator matrix_iter = std::find(n1_graph_tuple.matrix_set.begin(),
                                                                               n1_graph_tuple.matrix_set.end(), n2_iter->two_hop_neighb_addr );
-                if((matrix_iter!= n1_graph_tuple.matrix_set.end()) and (n2_iter->d1 > matrix_iter->d))
+                if((matrix_iter!= n1_graph_tuple.matrix_set.end()) and (n2_iter->d1 > matrix_iter->total_degree))
                 {
                    n_set.push_back(*n2_iter);
                 }
@@ -1225,7 +1225,7 @@ template <typename T>
                 std::map<T_NODE_ADDRESS, T_MATRIX>::const_iterator matrix_iter = n1_graph_tuple.matrix_set.find(n2_iter->two_hop_neighb_addr);
                 if(matrix_iter != n1_graph_tuple.matrix_set.end())
                   {
-                    if(n2_iter->d1 > matrix_iter->second.d)
+                    if(n2_iter->d1 > matrix_iter->second.total_degree)
                       {
                         n_set.push_back(*n2_iter);
                       }
@@ -1292,7 +1292,7 @@ template <typename T>
                         {
                           /* Checks if the metric value of current 1-Hop neighbor is less than
                            * other 1-Hop neighbor. If true then increments its reachability */
-                          if(one_hop_iter->d < other_neighbor_iter->d)
+                          if(one_hop_iter->total_degree < other_neighbor_iter->total_degree)
                             {
                               increment_reachability = true;
                             }
@@ -1369,7 +1369,7 @@ template <typename T>
                     {
                       /* Checks if the metric value of current 1-Hop neighbor is less than
                       * other 1-Hop neighbor. If true then increments its degree */
-                      if(one_hop_iter->d < other_neighbor_iter->d)
+                      if(one_hop_iter->total_degree < other_neighbor_iter->total_degree)
                         {
                           increment_degree = true;
                         }

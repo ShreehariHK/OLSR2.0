@@ -417,8 +417,8 @@ typedef struct
 typedef struct
 {
     T_NODE_ADDRESS two_hop_neighb_addr; /* Symmetric 2-Hop neighbor address */
-    float d2;                              /* metric between one_hop and two_hop neighbors */
-    float d;                               /* d1 + d2 */
+    float deg_one_two_hop_neighb;       /* metric between one_hop and two_hop neighbors */
+    float total_degree;                /* deg_this_one_hop_neighb + deg_one_two_hop_neighb */
 
 }T_MATRIX;
 
@@ -426,7 +426,7 @@ typedef struct
 static inline T_BOOL
 operator < (const T_MATRIX& matrix_a, const T_MATRIX& matrix_b)
 {
-  return(matrix_a.d < matrix_b.d);
+  return(matrix_a.total_degree < matrix_b.total_degree);
 }
 
 /* Checks whether the given address is mathcing with metrix's address */
@@ -446,7 +446,7 @@ typedef struct
     T_NODE_ADDRESS one_hop_neighb_addr;         /* Symmetric one_hop neighbor address*/
     U_WILLINGNESS neighb_will;                  /* Neighbor Willingness */
     T_UINT8 degree;                             /* The number of 2-Hop nodes connected by this 1-Hop neighbor */
-    float d1;                                   /* metric between current node and one_hop neighbors */
+    float deg_this_one_hop_neighb;              /* metric between current node and one_hop neighbors */
     std::vector<T_MATRIX> matrix_set;   /* metrics between this one-hop and two-hop neighbors  connected by it*/
 }T_N1;
 
