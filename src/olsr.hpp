@@ -1,11 +1,13 @@
-/*                            Project title
+/*               DEAL MANET Waveform Software Components
  *
  *
- * Source Code Name   :   olsr.hpp
+ * Source Code Name        : olsr.hpp
+ *
+ * Source Code Part Number : MNTWSC-321-DI-0004
  *        
- * Description        :   To store main data of olsr instance .
+ * Description             : To store main data of olsr instance .
  * 
- * Subsystem Name     :   OLSR
+ * Subsystem Name          : OLSR
  *        
  * Revision History               
  * ---------------------------------------------------------------------------|
@@ -14,10 +16,13 @@
  * 1.0     |Initial Version                   | 14-06-2021 |Shreehari H K     |
  * --------|----------------------------------|------------|------------------|
  *           
- *                              Copyright statement                            
+ * COPYRIGHT © Defence Electronics Applications Laboratory (DEAL), Raipur Road, Dehradun - 2480017.
  *
+ * PROPRIETARY - This document and the information contained herein is the property of DEAL,
+ * and must not be disclosed, copied, altered or used without written permission.
  *
  */
+
 #ifndef OLSR_HPP_
 #define OLSR_HPP_
 
@@ -52,8 +57,14 @@ namespace ns_olsr2_0
     /* OLSR entry point function for RUN State */
     void run(void);
 
+    /* Stops the OLSR instance */
+    void stop(void);
+
     /* Resets the OLSR instance */
     void reset(void);
+
+    /* Configures the OLSR instance */
+    void configure(void);
 
 #ifdef M_TO_BE_DELETED
 
@@ -432,6 +443,9 @@ namespace ns_olsr2_0
 
     /* Calculates the Routing Table */
     void calculate_routing_table(const T_NETWORK_TOPOLOGY_GRAPH& p_network_topology_graph);
+#ifdef COMMENT_SECTION
+    void calculate_back_up_routing_table(const T_NETWORK_TOPOLOGY_GRAPH& p_network_topology_graph);
+#endif
   };
 
 }

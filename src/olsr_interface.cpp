@@ -1,11 +1,13 @@
-/*                        Project title
+/*               DEAL MANET Waveform Software Components
  *
  *
- * Source Code Name   :   olsr_interface.cpp
+ * Source Code Name        : olsr_interface.cpp
  *
- * Description        :   Implements interface for OLSR.
+ * Source Code Part Number : MNTWSC-321-RI-0004
  *
- * Subsystem Name     :   OLSR
+ * Description             : Implements interface for OLSR
+ *
+ * Subsystem Name          : OLSR
  *
  * Revision History
  * ---------------------------------------------------------------------------|
@@ -14,8 +16,10 @@
  * 1.0     |Initial Version                   | 14-06-2021 | Shreehari H K    |
  * --------|----------------------------------|------------|------------------|
  *
- *                              Copyright statement
+ * COPYRIGHT © Defence Electronics Applications Laboratory (DEAL), Raipur Road, Dehradun - 2480017.
  *
+ * PROPRIETARY - This document and the information contained herein is the property of DEAL,
+ * and must not be disclosed, copied, altered or used without written permission.
  *
  */
 

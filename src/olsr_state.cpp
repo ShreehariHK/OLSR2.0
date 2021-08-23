@@ -1,11 +1,13 @@
-/*                        Project title
+/*               DEAL MANET Waveform Software Components
  *
  *
- * Source Code Name   :   olsr_state.cpp
+ * Source Code Name        : olsr_state.cpp
  *
- * Description        :   Implements OLSR state functionality
+ * Source Code Part Number : MNTWSC-321-RI-0004
  *
- * Subsystem Name     :   OLSR
+ * Description             : Implements OLSR state functionality
+ *
+ * Subsystem Name          : OLSR
  *
  * Revision History
  * ---------------------------------------------------------------------------|
@@ -14,10 +16,13 @@
  * 1.0     |Initial Version                   | 14-06-2021 | Akash kumar P    |
  * --------|----------------------------------|------------|------------------|
  *
- *                              Copyright statement
+ * COPYRIGHT © Defence Electronics Applications Laboratory (DEAL), Raipur Road, Dehradun - 2480017.
  *
+ * PROPRIETARY - This document and the information contained herein is the property of DEAL,
+ * and must not be disclosed, copied, altered or used without written permission.
  *
  */
+
 #include "olsr_state.hpp"
 
 namespace ns_olsr2_0
@@ -798,6 +803,27 @@ namespace ns_olsr2_0
   E_ROUTE_STATUS
   C_OLSR_STATE::find_next_routing_hop_addr(const T_ADDR* p_dest_addr, T_ADDR* p_rdest_addr)
   {
+
+    T_NODE_ADDRESS dest_address;
+    E_ROUTE_STATUS route_state = ROUTE_NOT_FOUND;
+
+    dest_address.net_id = p_dest_addr->field.m_oid;
+    dest_address.node_id = p_dest_addr->field.m_nid;
+
+    /* Loops through the Routing table and finds if the given destination address'
+     * entry is present or not. If present then returns the next 1-Hop router's
+     * address to reach that destination */
+    std::vector<T_ROUTING_TABLE_ENTRY>::const_iterator router_iter = std::find(m_routing_table.begin(), m_routing_table.end(), dest_address);
+
+    if(router_iter != m_routing_table.end())
+      {
+        p_rdest_addr->field.m_nid = router_iter->r_next_iface_addr.node_id;
+        p_rdest_addr->field.m_oid = router_iter->r_next_iface_addr.net_id;
+        route_state = ROUTE_FOUND;
+      }
+
+    return route_state;
+#ifdef COMMENT_SECTION
     T_NODE_ADDRESS dest_address;
     E_ROUTE_STATUS route_state = ROUTE_NOT_FOUND;
 
@@ -818,7 +844,7 @@ namespace ns_olsr2_0
       }
 
     return route_state;
-
+#endif
   }
 
   /********************************************************************
@@ -832,6 +858,20 @@ namespace ns_olsr2_0
   C_OLSR_STATE::get_network_topology_info(std::vector<T_NETWORK_TOPOLOGY_TUPLE>& topology_table)
   {
     T_NETWORK_TOPOLOGY_TUPLE network_topology_tuple;
+    for(std::vector<T_ROUTING_TABLE_ENTRY>::const_iterator router_iter = m_routing_table.begin();
+        router_iter != m_routing_table.end(); router_iter++)
+      {
+        network_topology_tuple.dest_net_id = router_iter->r_dest_addr.net_id;
+        network_topology_tuple.dest_radio_addr = router_iter->r_dest_addr;
+        network_topology_tuple.next_hop_radio_id = router_iter->r_next_iface_addr.net_id;
+        network_topology_tuple.next_hop_radio_addr = router_iter->r_next_iface_addr;
+        network_topology_tuple.hop_count = router_iter->r_dist;
+        network_topology_tuple.lqi = router_iter->r_metric;
+
+        topology_table.push_back(network_topology_tuple);
+      }
+#ifdef COMMENT_SECTION
+    T_NETWORK_TOPOLOGY_TUPLE network_topology_tuple;
     for(std::map<T_NODE_ADDRESS, T_ROUTING_TABLE_ENTRY>::const_iterator router_iter = m_routing_table.begin();
         router_iter != m_routing_table.end(); router_iter++)
       {
@@ -844,9 +884,61 @@ namespace ns_olsr2_0
 
         topology_table.push_back(network_topology_tuple);
       }
+#endif
+  }
+
+  /********************************************************************
+   * @function  print_routing_table
+   * @brief     This function gets the complete routing table ans shares it.
+   * @param     [1] topology_table - Network topology table.
+   * @return    None.
+   * @note      None.
+   ********************************************************************/
+  void
+  C_OLSR_STATE::print_routing_table()
+  {
+
+    for(std::vector<T_ROUTING_TABLE_ENTRY>::const_iterator routing_table_itr = m_routing_table.begin();
+        routing_table_itr != m_routing_table.end(); routing_table_itr++)
+      {
+        std::cout << "Destination address : " << (int)routing_table_itr->r_dest_addr.net_id << "." << (int)routing_table_itr->r_dest_addr.node_id << std::endl;
+        std::cout << "Next address : " << (int)routing_table_itr->r_next_iface_addr.net_id << "." << (int)routing_table_itr->r_next_iface_addr.node_id << std::endl;
+        std::cout << " Metric : " << (float)routing_table_itr->r_metric << std::endl;
+        std::cout << " Distance : " << (int)routing_table_itr->r_dist << std::endl;
+        std::cout << "Source address : " << (int)routing_table_itr->r_local_iface_addr.net_id << "." << (int)routing_table_itr->r_local_iface_addr.node_id << std::endl;
+
+      }
 
   }
 
+#ifdef COMMENT_SECTION
+  /********************************************************************
+   * @function  insert_table_specifically
+   * @brief     This function Creates and inserts routing tuple to
+   *            Routing Table.
+   * @param     [1] new_route_data - New Routing table data.
+   *            [2] next_address - Next hop address.
+   *            [3] hop_count - Distance from this node to destination.
+   * @return    None.
+   * @note      None.
+   ********************************************************************/
+   void
+   C_OLSR_STATE::insert_table_specifically(T_NETWORK_LINK const &new_route_data, const T_NODE_ADDRESS& next_address, T_UINT8 hop_count,
+                                           std::vector<T_ROUTING_TABLE_ENTRY>::iterator  &position)
+   {
+     T_ROUTING_TABLE_ENTRY new_entry;
+     new_entry.r_dest_addr = new_route_data.dest_addr;
+     new_entry.r_next_iface_addr = next_address;
+     new_entry.r_local_iface_addr = new_route_data.src_addr;
+     new_entry.r_metric = new_route_data.out_metric;
+     new_entry.r_dist = hop_count;
+     new_entry.r_used = false;
+
+     position = m_routing_table.insert(position + M_ONE, new_entry);
+
+   }
+
+#endif
 
  /********************************************************************
   * @function  insert_routing_tuple
@@ -859,9 +951,18 @@ namespace ns_olsr2_0
   * @note      None.
   ********************************************************************/
   void
-  C_OLSR_STATE::insert_routing_tuple(T_NETWORK_LINK new_route_data, const T_NODE_ADDRESS& next_address, T_UINT8 hop_count)
+  C_OLSR_STATE::insert_routing_tuple(T_NETWORK_LINK const &new_route_data, const T_NODE_ADDRESS& next_address, T_UINT8 hop_count)
   {
+    T_ROUTING_TABLE_ENTRY new_entry;
+    new_entry.r_dest_addr = new_route_data.dest_addr;
+    new_entry.r_next_iface_addr = next_address;
+    new_entry.r_local_iface_addr = new_route_data.src_addr;
+    new_entry.r_metric = new_route_data.out_metric;
+    new_entry.r_dist = hop_count;
+    new_entry.r_used = false;
 
+    m_routing_table.push_back(new_entry);
+#ifdef COMMENT_SECTION
     T_ROUTING_TABLE_ENTRY new_entry;
 
     new_entry.r_dest_addr = new_route_data.dest_addr;
@@ -871,8 +972,42 @@ namespace ns_olsr2_0
     new_entry.r_dist = hop_count;
     new_entry.r_used = false;
 
-    m_routing_table.insert({new_entry.r_dest_addr, new_entry});
-  }
+    //m_routing_table.insert({new_route_data.dest_addr, new_entry});
+
+    m_routing_table.insert(std::pair<T_NODE_ADDRESS, T_ROUTING_TABLE_ENTRY>(new_route_data.dest_addr, new_entry));
+
+
+    T_ROUTING_TABLE_ENTRY &new_entry = m_routing_table[new_route_data.dest_addr];
+    new_entry.r_dest_addr = new_route_data.dest_addr;
+    new_entry.r_next_iface_addr = next_address;
+    new_entry.r_local_iface_addr = new_route_data.src_addr;
+    new_entry.r_metric = new_route_data.out_metric;
+    new_entry.r_dist = hop_count;
+    new_entry.r_used = false;
+
+    std::cout << "table size = " << m_routing_table.size() << std::endl ;
+    for(std::map<T_NODE_ADDRESS, T_ROUTING_TABLE_ENTRY>::const_iterator iter = m_routing_table.begin();
+        iter != m_routing_table.end(); iter++)
+      {
+        if(iter->first == iter->second.r_dest_addr)
+          {
+            std::cout << "Destination= " << (int)m_routing_table[new_route_data.dest_addr].r_dest_addr.net_id << "."
+                  << (int)m_routing_table[new_entry.r_dest_addr].r_dest_addr.node_id << "\t";
+
+            std::cout << "Next Hop= " << (int)m_routing_table[new_route_data.dest_addr].r_next_iface_addr.net_id << "."
+                      << (int)m_routing_table[new_entry.r_dest_addr].r_next_iface_addr.node_id << "\t";
+
+            std::cout << "with metric = " << (float)m_routing_table[new_route_data.dest_addr].r_metric << "\t Hop Count"
+                          << (int)m_routing_table[new_entry.r_dest_addr].r_dist << std::endl;
+          }
+      }
+#endif
+
+
+
+
+
+   }
 
   /********************************************************************
    * @function  get_routing_table
@@ -881,12 +1016,87 @@ namespace ns_olsr2_0
    * @return    None.
    * @note      None.
    ********************************************************************/
-  std::map<T_NODE_ADDRESS, T_ROUTING_TABLE_ENTRY>
-  C_OLSR_STATE::get_routing_table(void) const
+  std::vector<T_ROUTING_TABLE_ENTRY>&
+  C_OLSR_STATE::get_routing_table(void)
+  {
+    return m_routing_table;
+  }
+#ifdef COMMENT_SECTION
+  /********************************************************************
+   * @function  get_routing_table
+   * @brief     This function erases complete Routing Table.
+   * @param     None.
+   * @return    None.
+   * @note      None.
+   ********************************************************************/
+  std::map<T_NODE_ADDRESS, T_ROUTING_TABLE_ENTRY>&
+  C_OLSR_STATE::get_routing_table(void)
   {
     return m_routing_table;
   }
 
+  /********************************************************************
+   * @function  get_back_up_routing_table
+   * @brief     This function erases complete Routing Table.
+   * @param     None.
+   * @return    None.
+   * @note      None.
+   ********************************************************************/
+  std::vector<T_ROUTING_TABLE_ENTRY>&
+  C_OLSR_STATE::get_back_up_routing_table(void)
+  {
+    return m_back_up_routing_table;
+  }
+#endif
+
+  /********************************************************************
+   * @function  find_routing_tuple
+   * @brief     This function finds the Routing tuple with the
+   *            given destination address where the metric value
+   *            is greater than the given new_metric value.
+   * @param     [1] dest_addr - Destination address.
+   *            [2] new_metric - New out link metric
+   * @return    Address of the matched routing tuple.
+   * @note      None.
+   ********************************************************************/
+    T_ROUTING_TABLE_ENTRY*
+    C_OLSR_STATE::find_routing_tuple(const T_NODE_ADDRESS& dest_addr, float new_metric)
+    {
+      T_ROUTING_TABLE_ENTRY* existing_tuple = NULL;
+
+      /* Finds whether a routing tuple is already present for the given destination and
+       * that tuple is not used for finding further routes.
+       * Then checks whether the link out metric value of that tuple is greater than or equal to
+       * the given new_metric, if true then this tuple must be updated for new metric
+       * So it returns that tuple*/
+
+      std::vector<T_ROUTING_TABLE_ENTRY>::iterator routing_table_iter = std::find(m_routing_table.begin(), m_routing_table.end(), dest_addr);
+
+      if(routing_table_iter != m_routing_table.end())
+        {
+          if((routing_table_iter->r_used == false) and (routing_table_iter->r_metric >= new_metric))
+            {
+              existing_tuple = &(*routing_table_iter);
+
+            }
+        }
+#ifdef COMMENT_SECTION
+      for(std::vector<T_ROUTING_TABLE_ENTRY>::iterator routing_table_iter = m_routing_table.begin();
+          routing_table_iter != m_routing_table.end(); routing_table_iter++)
+        {
+          if((routing_table_iter->r_dest_addr == dest_addr) and
+                  (routing_table_iter->r_used == false) and (routing_table_iter->r_metric >= new_metric))
+           {
+             existing_tuple = &(*routing_table_iter);
+
+           }
+
+        }
+#endif
+      return existing_tuple;
+
+    }
+#ifdef COMMENT_SECTION
   /********************************************************************
    * @function  find_routing_tuple
    * @brief     This function finds the Routing tuple with the
@@ -922,6 +1132,43 @@ namespace ns_olsr2_0
   }
 
   /********************************************************************
+   * @function  find_back_up_routing_tuple
+   * @brief     This function finds the Routing tuple with the
+   *            given destination address where the metric value
+   *            is greater than the given new_metric value.
+   * @param     [1] dest_addr - Destination address.
+   *            [2] new_metric - New out link metric
+   * @return    Address of the matched routing tuple.
+   * @note      None.
+   ********************************************************************/
+  T_ROUTING_TABLE_ENTRY*
+  C_OLSR_STATE::find_back_up_routing_tuple(const T_NODE_ADDRESS& dest_addr, float new_metric)
+  {
+    T_ROUTING_TABLE_ENTRY* existing_tuple = NULL;
+
+    /* Finds whether a routing tuple is already present for the given destination and
+     * that tuple is not used for finding further routes.
+     * Then checks whether the link out metric value of that tuple is greater than or equal to
+     * the given new_metric, if true then this tuple must be updated for new metric
+     * So it returns that tuple*/
+    for(std::vector<T_ROUTING_TABLE_ENTRY>::iterator routing_table_iter = m_back_up_routing_table.begin();
+        routing_table_iter != m_back_up_routing_table.end(); routing_table_iter++)
+      {
+        if((routing_table_iter->r_dest_addr == dest_addr) and
+        		(routing_table_iter->r_used == false) and (routing_table_iter->r_metric >= new_metric))
+         {
+           existing_tuple = &(*routing_table_iter);
+
+         }
+
+      }
+
+    return existing_tuple;
+
+  }
+#endif
+
+  /********************************************************************
    * @function  erase_routing_tuple
    * @brief     This function erases complete Routing Table.
    * @param     None.
@@ -933,6 +1180,21 @@ namespace ns_olsr2_0
   {
     m_routing_table.clear();
   }
+
+#ifdef COMMENT_SECTION
+  /********************************************************************
+    * @function  erase_back_up_routing_table
+    * @brief     This function erases complete Routing Table.
+    * @param     None.
+    * @return    None.
+    * @note      None.
+    ********************************************************************/
+   void
+   C_OLSR_STATE::erase_back_up_routing_table()
+   {
+     m_back_up_routing_table.clear();
+   }
+#endif
 
   /********************************************************************
    * @function  init_state_tuples
@@ -1228,6 +1490,95 @@ namespace ns_olsr2_0
 
       }
 
+  }
+  /********************************************************************
+      * @function  fill_tables_for_routing_comp
+      * @brief     This function fills some Link and 1-hop neighbor tuples.
+      * @return    None.
+      * @note      None.
+  ********************************************************************/
+  void
+  C_OLSR_STATE:: fill_tables_for_routing_comp()
+  {
+    T_LINK_TUPLE new_tuple;
+    T_NEIGHBOUR_TUPLE new_nb_tuple;
+    T_ROUTER_TOPOLOGY_TUPLE new_rt_tuple;
+
+    new_tuple.l_neighbor_iface_addr = {10, 11};
+    new_tuple.l_in_metric = 0.9;
+    new_tuple.l_out_metric = 0.8;
+    new_tuple.l_status = M_SYMMETRIC;
+    m_link_set.push_back (new_tuple);
+
+    new_tuple.l_neighbor_iface_addr = {10, 12};
+    new_tuple.l_in_metric = 0.7;
+    new_tuple.l_out_metric = 0.9;
+    new_tuple.l_status = M_SYMMETRIC;
+    m_link_set.push_back (new_tuple);
+
+    new_tuple.l_neighbor_iface_addr = {10, 13};
+    new_tuple.l_in_metric = 0.8;
+    new_tuple.l_out_metric = 0.75;
+    new_tuple.l_status = M_SYMMETRIC;
+    m_link_set.push_back (new_tuple);
+
+    new_nb_tuple.n_neighbor_addr = {10,11};
+    new_nb_tuple.n_in_metric = 0.9;
+    new_nb_tuple.n_out_metric = 0.8;
+    new_nb_tuple.n_symmetric = true;
+    m_neighbour_set.push_back (new_nb_tuple);
+
+    new_nb_tuple.n_neighbor_addr = {10,12};
+    new_nb_tuple.n_in_metric = 0.7;
+    new_nb_tuple.n_out_metric = 0.9;
+    new_nb_tuple.n_symmetric = true;
+    m_neighbour_set.push_back (new_nb_tuple);
+
+    new_nb_tuple.n_neighbor_addr = {10,13};
+    new_nb_tuple.n_in_metric = 0.8;
+    new_nb_tuple.n_out_metric = 0.75;
+    new_nb_tuple.n_symmetric = true;
+    m_neighbour_set.push_back (new_nb_tuple);
+
+    new_rt_tuple.tr_from_orig_addr = {10, 11};
+    new_rt_tuple.tr_to_orig_addr = {10, 14};
+    new_rt_tuple.tr_metric = 0.9;
+    m_router_topology_set.push_back(new_rt_tuple);
+
+    new_rt_tuple.tr_from_orig_addr = {10, 13};
+    new_rt_tuple.tr_to_orig_addr = {10, 15};
+    new_rt_tuple.tr_metric = 0.7;
+    m_router_topology_set.push_back(new_rt_tuple);
+
+    new_rt_tuple.tr_from_orig_addr = {10, 13};
+    new_rt_tuple.tr_to_orig_addr = {10, 14};
+    new_rt_tuple.tr_metric = 0.75;
+    m_router_topology_set.push_back(new_rt_tuple);
+
+    new_rt_tuple.tr_from_orig_addr = {10, 13};
+    new_rt_tuple.tr_to_orig_addr = {10, 16};
+    new_rt_tuple.tr_metric = 0.9;
+    m_router_topology_set.push_back(new_rt_tuple);
+
+    new_rt_tuple.tr_from_orig_addr = {10, 12};
+    new_rt_tuple.tr_to_orig_addr = {10, 16};
+    new_rt_tuple.tr_metric = 0.86;
+    m_router_topology_set.push_back(new_rt_tuple);
+
+    new_rt_tuple.tr_from_orig_addr = {10, 15};
+    new_rt_tuple.tr_to_orig_addr = {10, 17};
+    new_rt_tuple.tr_metric = 0.8;
+    m_router_topology_set.push_back(new_rt_tuple);
+
+    new_rt_tuple.tr_from_orig_addr = {10, 15};
+    new_rt_tuple.tr_to_orig_addr = {10, 18};
+    new_rt_tuple.tr_metric = 0.85;
+    m_router_topology_set.push_back(new_rt_tuple);
+
+    new_rt_tuple.tr_from_orig_addr = {10, 16};
+    new_rt_tuple.tr_to_orig_addr = {10, 18};
+    new_rt_tuple.tr_metric = 0.82;
+    m_router_topology_set.push_back(new_rt_tuple);
   }
 
 }

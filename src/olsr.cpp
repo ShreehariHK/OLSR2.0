@@ -1,11 +1,13 @@
-/*                        Project title
+/*               DEAL MANET Waveform Software Components
  *
  *
- * Source Code Name   :   olsr.cpp
+ * Source Code Name        : olsr.cpp
  *
- * Description        :   Implements OLSR protocol functionality .
+ * Source Code Part Number : MNTWSC-321-RI-0004
  *
- * Subsystem Name     :   OLSR
+ * Description             : Implements OLSR protocol functionality .
+ *
+ * Subsystem Name          : OLSR
  *
  * Revision History
  * ---------------------------------------------------------------------------|
@@ -14,14 +16,17 @@
  * 1.0     |Initial Version                   | 14-06-2021 | Shreehari H K    |
  * --------|----------------------------------|------------|------------------|
  *
- *                              Copyright statement
+ * COPYRIGHT © Defence Electronics Applications Laboratory (DEAL), Raipur Road, Dehradun - 2480017.
  *
+ * PROPRIETARY - This document and the information contained herein is the property of DEAL,
+ * and must not be disclosed, copied, altered or used without written permission.
  *
  */
+
 #include <iostream>
 
 #include "olsr.hpp"
-#include <cmath>
+//#include <cmath>
 
 using namespace std;
 
@@ -344,7 +349,7 @@ template <typename T>
 
   T_UINT16 C_OLSR::get_next_msg_seq_num(void)
   {
-    m_message_sequence_number += (m_message_sequence_number + M_ONE) % (M_MAX_MSG_SEQ_NUM + M_ONE);
+    m_message_sequence_number = (m_message_sequence_number + M_ONE) % (M_MAX_MSG_SEQ_NUM + M_ONE);
     return m_message_sequence_number;
   }
 
@@ -398,6 +403,7 @@ template <typename T>
     /* Checks if the originator of received OLSR message is the node itself*/
     if(msg_header.get_originator_address() == this->get_node_addr())
     {
+        cout << "Same address error" << endl;
       return_status = false;
     }
 
@@ -1161,11 +1167,13 @@ template <typename T>
           {
               T_MATRIX new_matrix;
 
-              //new_matrix.two_hop_neighb_addr = allowed_two_hop_iter->two_hop_neighb_addr;
+              new_matrix.two_hop_neighb_addr = allowed_two_hop_iter->two_hop_neighb_addr;
               new_matrix.d2 = allowed_two_hop_iter->in_out_metric;
               new_matrix.d = n1_iter->d1 + new_matrix.d2;
-
+#ifdef COMMENT_SECTION
               n1_iter->matrix_set.insert({allowed_two_hop_iter->two_hop_neighb_addr, new_matrix});
+#endif
+              n1_iter->matrix_set.push_back(new_matrix);
 
           }
 
@@ -1205,16 +1213,15 @@ template <typename T>
                 n1_iter != p_neighbor_graph.n1_set.end(); n1_iter++)
               {
                 const T_N1 &n1_graph_tuple = *n1_iter;
+
+                std::vector<T_MATRIX>::const_iterator matrix_iter = std::find(n1_graph_tuple.matrix_set.begin(),
+                                                                              n1_graph_tuple.matrix_set.end(), n2_iter->two_hop_neighb_addr );
+                if((matrix_iter!= n1_graph_tuple.matrix_set.end()) and (n2_iter->d1 > matrix_iter->d))
+                {
+                   n_set.push_back(*n2_iter);
+                }
+
 #ifdef COMMENT_SECTION
-                for(std::vector<T_MATRIX>::const_iterator matrix_iter = n1_graph_tuple.matrix_set.begin();
-                    matrix_iter != n1_graph_tuple.matrix_set.end(); matrix_iter++)
-                  {
-                    if((matrix_iter->two_hop_neighb_addr == n2_iter->two_hop_neighb_addr) and (n2_iter->d1 > matrix_iter->d))
-                    {
-                       n_set.push_back(*n2_iter);
-                    }
-                  }
-#endif
                 std::map<T_NODE_ADDRESS, T_MATRIX>::const_iterator matrix_iter = n1_graph_tuple.matrix_set.find(n2_iter->two_hop_neighb_addr);
                 if(matrix_iter != n1_graph_tuple.matrix_set.end())
                   {
@@ -1223,6 +1230,7 @@ template <typename T>
                         n_set.push_back(*n2_iter);
                       }
                   }
+#endif
               }
           }
       }
@@ -1259,8 +1267,12 @@ template <typename T>
             if(n1_neighb_graph_iter->one_hop_neighb_addr == remaining_n_graph_iter->one_hop_neighb_addr)
               {
                 /* Checks if the metric value is present between this 2-Hop and 1-Hop neighbor */
+#ifdef COMMENT_SECTION
                 std::map<T_NODE_ADDRESS, T_MATRIX>::const_iterator one_hop_iter = n1_neighb_graph_iter->matrix_set.find(remaining_n_graph_iter->two_hop_neighb_addr);
-
+#else
+                std::vector<T_MATRIX>::const_iterator one_hop_iter = std::find(n1_neighb_graph_iter->matrix_set.begin(),
+                                   n1_neighb_graph_iter->matrix_set.end(), remaining_n_graph_iter->two_hop_neighb_addr);
+#endif
                 if(one_hop_iter != n1_neighb_graph_iter->matrix_set.end())
                   {
                     /* Loops through the other 1-Hop neighbors */
@@ -1270,13 +1282,17 @@ template <typename T>
                       const T_N1& other_one_hop_neighbor = *other_n1_graph_iter;
 
                       /* Checks if the metric value is present between this 2-Hop and other 1-Hop neighbor */
+#ifdef COMMENT_SECTION
                       std::map<T_NODE_ADDRESS, T_MATRIX>::const_iterator other_neighbor_iter = other_one_hop_neighbor.matrix_set.find(remaining_n_graph_iter->two_hop_neighb_addr);
-
+#else
+                      std::vector<T_MATRIX>::const_iterator other_neighbor_iter = std::find(other_one_hop_neighbor.matrix_set.begin(),
+                                      other_one_hop_neighbor.matrix_set.end(), remaining_n_graph_iter->two_hop_neighb_addr);
+#endif
                       if(other_neighbor_iter != n1_neighb_graph_iter->matrix_set.end())
                         {
                           /* Checks if the metric value of current 1-Hop neighbor is less than
                            * other 1-Hop neighbor. If true then increments its reachability */
-                          if(one_hop_iter->second < other_neighbor_iter->second)
+                          if(one_hop_iter->d < other_neighbor_iter->d)
                             {
                               increment_reachability = true;
                             }
@@ -1328,8 +1344,12 @@ template <typename T>
         if(one_hop_neighbor.one_hop_neighb_addr == n_graph_iter->one_hop_neighb_addr)
           {
             /* Checks if the metric value is present between this 2-Hop and 1-Hop neighbor */
+#ifdef COMMENT_SECTION
             std::map<T_NODE_ADDRESS, T_MATRIX>::const_iterator one_hop_iter = one_hop_neighbor.matrix_set.find(n_graph_iter->two_hop_neighb_addr);
-
+#else
+            std::vector<T_MATRIX>::const_iterator one_hop_iter = std::find(one_hop_neighbor.matrix_set.begin(),
+                                                                           one_hop_neighbor.matrix_set.end(), n_graph_iter->two_hop_neighb_addr);
+#endif
             if(one_hop_iter != one_hop_neighbor.matrix_set.end())
               {
                 /* Loops through the other 1-Hop neighbors */
@@ -1339,13 +1359,17 @@ template <typename T>
                   const T_N1& other_one_hop_neighbor = *other_n1_graph_iter;
 
                   /* Checks if the metric value is present between this 2-Hop and other 1-Hop neighbor */
+#ifdef COMMENT_SECTION
                   std::map<T_NODE_ADDRESS, T_MATRIX>::const_iterator other_neighbor_iter = other_one_hop_neighbor.matrix_set.find(n_graph_iter->two_hop_neighb_addr);
-
+#else
+                  std::vector<T_MATRIX>::const_iterator other_neighbor_iter = std::find(other_one_hop_neighbor.matrix_set.begin(),
+                                                                                        other_one_hop_neighbor.matrix_set.end(), n_graph_iter->two_hop_neighb_addr);
+#endif
                   if(other_neighbor_iter != one_hop_neighbor.matrix_set.end())
                     {
                       /* Checks if the metric value of current 1-Hop neighbor is less than
                       * other 1-Hop neighbor. If true then increments its degree */
-                      if(one_hop_iter->second < other_neighbor_iter->second)
+                      if(one_hop_iter->d < other_neighbor_iter->d)
                         {
                           increment_degree = true;
                         }
@@ -1666,6 +1690,9 @@ template <typename T>
           neighb_network_link.out_metric = neighb_set_iter->n_out_metric;
 
           p_network_topology_graph->one_hop_set.push_back(neighb_network_link);
+
+          //cout << "Added neighbor graph" << endl;
+          //std::cout << (int)neighb_network_link.dest_addr.net_id << "." << (int)neighb_network_link.dest_addr.node_id << std::endl;
         }
 
     }
@@ -1681,16 +1708,20 @@ template <typename T>
 
       p_network_topology_graph->router_topology_set.push_back(topology_network_link);
 
+      //cout << "Added Router Topology graph" << endl;
+      //std::cout << (int)topology_network_link.dest_addr.net_id << "." << (int)topology_network_link.dest_addr.node_id << std::endl;
+
     }
 
   }
 
+#ifdef COMMENT_SECTION
   /********************************************************************
       * @function  calculate_routing_table
       * @brief     This function calculates the routing table
       * @param	   [1] p_network_topology_graph - Network Topology Graph
       * @return    None.
-      * @note      None.
+      * @note      Its a map based implementation.
   ********************************************************************/
   void C_OLSR::calculate_routing_table(const T_NETWORK_TOPOLOGY_GRAPH& p_network_topology_graph)
   {
@@ -1702,32 +1733,48 @@ template <typename T>
     for(std::vector<T_NETWORK_LINK>::const_iterator one_hop_neigh_iter = p_network_topology_graph.one_hop_set.begin();
         one_hop_neigh_iter != p_network_topology_graph.one_hop_set.end(); one_hop_neigh_iter++)
       {
-        m_state.insert_routing_tuple(*one_hop_neigh_iter, one_hop_neigh_iter->src_addr, hop_count);
+        T_NETWORK_LINK const & one_hop_graph_tuple = *one_hop_neigh_iter;
+        m_state.insert_routing_tuple(one_hop_graph_tuple, one_hop_neigh_iter->dest_addr, hop_count);
+
       }
 
+    T_BOOL new_entry_added = false;
     /* Loops through Routing table and finds the routes to all the destinations present in Router Topology table */
     for(std::map<T_NODE_ADDRESS, T_ROUTING_TABLE_ENTRY>::iterator routing_table_iter = m_state.get_routing_table().begin();
-        routing_table_iter != m_state.get_routing_table().end(); routing_table_iter++)
+        routing_table_iter != m_state.get_routing_table().end();)
       {
+        cout << "Next tuple for comparing is " << (int)routing_table_iter->first.net_id << "." << (int)routing_table_iter->first.node_id << endl;
         if(routing_table_iter->second.r_used == false)
           {
+            if(routing_table_iter->first == routing_table_iter->second.r_dest_addr)
+              {
+            cout << "Inside main for loop" << endl;
+
+            //set_routing_tables_used_field();
             routing_table_iter->second.r_used = true;
+
 
             for(std::vector<T_NETWORK_LINK>::const_iterator router_topo_iter = p_network_topology_graph.router_topology_set.begin();
                 router_topo_iter != p_network_topology_graph.router_topology_set.end(); router_topo_iter++)
               {
                 /* Checks whether Routing tuple's destination address is matching
                  * with Router topology tuple's source address */
-                if(routing_table_iter->first == router_topo_iter->src_addr)
+                if(routing_table_iter->second.r_dest_addr == router_topo_iter->src_addr)
                   {
+                    cout << "Comparing address =" << (int)routing_table_iter->second.r_dest_addr.net_id << "." << (int)routing_table_iter->second.r_dest_addr.node_id <<
+                        " to the destination - " << (int)router_topo_iter->dest_addr.net_id << "." << (int)router_topo_iter->dest_addr.node_id<< endl;
                     /* Creates a new Network link and adds the following
                      * i) Set out link metric of the new tuple by adding the out link metric value of current Routing tuple and
                      * Out link  metric value of Router topology tuple
                      * ii) Set the new distance by adding 1 to distance value of current Routing tuple */
+
+                    cout << " Router Topology metric + table metric = " << router_topo_iter->out_metric <<  "+" << routing_table_iter->second.r_metric <<endl;
                     T_NETWORK_LINK new_tuple;
 
                     new_tuple.out_metric = routing_table_iter->second.r_metric + router_topo_iter->out_metric;
                     hop_count = routing_table_iter->second.r_dist + M_ONE;
+
+                    cout << "Initial metric  =" << (float)new_tuple.out_metric << "and Hop count" << (int)hop_count << endl;
 
                     /* Finds whether a Routing tuple for the destination is already present
                      * and its Out link metric is greater or equal to the new metric.
@@ -1745,24 +1792,177 @@ template <typename T>
                      * iv) r_dist = New Hop count */
                     if(routing_tuple == NULL)
                       {
+                        cout << "Added new entry - Dest = " << (int)new_tuple.dest_addr.net_id << "." << (int)new_tuple.dest_addr.net_id << endl;
+                        cout << "Next hop ="  << (int)new_tuple.src_addr.net_id << "." << (int)new_tuple.src_addr.net_id << endl;
                         new_tuple.dest_addr = router_topo_iter->dest_addr;
                         new_tuple.src_addr = m_node_address;
                         m_state.insert_routing_tuple(new_tuple, routing_table_iter->second.r_next_iface_addr, hop_count);
-
+                        new_entry_added = true;
+                        cout<< "New tuple added" << endl;
                       }
                     else
                       {
                         routing_tuple->r_next_iface_addr = routing_table_iter->second.r_next_iface_addr;
                         routing_tuple->r_metric =new_tuple.out_metric;
                         routing_tuple->r_dist = hop_count;
+                        cout<< "Current tuple updated" << endl;
 
                       }
 
                   }
               }
+              }
+          }
+        if(new_entry_added == true)
+          {
+            routing_table_iter = m_state.get_routing_table().begin();
+            new_entry_added = false;
+          }
+        else
+          {
+            routing_table_iter++;
           }
 
       }
+
+  }
+#endif
+
+  /********************************************************************
+      * @function  calculate_routing_table
+      * @brief     This function calculates the routing table
+      * @param     [1] p_network_topology_graph - Network Topology Graph
+      * @return    None.
+      * @note      Its a vector based implementation.
+  ********************************************************************/
+#ifdef COMMENT_SECTION
+  void C_OLSR::calculate_back_up_routing_table(const T_NETWORK_TOPOLOGY_GRAPH& p_network_topology_graph)
+#else
+  void C_OLSR::calculate_routing_table(const T_NETWORK_TOPOLOGY_GRAPH& p_network_topology_graph)
+  {
+#endif
+
+    /* Erases the complete Routing Table */
+#ifdef COMMENT_SECTION
+    m_state.erase_back_up_routing_table();
+#else
+    m_state.erase_routing_table();
+#endif
+
+    T_UINT8 hop_count = M_ONE;
+
+    /* Adds all the symmetric 1-hop neighbors to Routing Table */
+    for(std::vector<T_NETWORK_LINK>::const_iterator one_hop_neigh_iter = p_network_topology_graph.one_hop_set.begin();
+        one_hop_neigh_iter != p_network_topology_graph.one_hop_set.end(); one_hop_neigh_iter++)
+      {
+        T_NETWORK_LINK const & one_hop_graph_tuple = *one_hop_neigh_iter;
+        m_state.insert_routing_tuple(one_hop_graph_tuple, one_hop_neigh_iter->dest_addr, hop_count);
+
+      }
+
+
+    /* Loops through Routing table and finds the routes to all the destinations present in Router Topology table */
+#ifdef COMMENT_SECTION
+    for(std::vector<T_ROUTING_TABLE_ENTRY>::iterator routing_table_iter = m_state.get_back_up_routing_table().begin();
+        routing_table_iter != m_state.get_back_up_routing_table().end();)
+#else
+    for(std::vector<T_ROUTING_TABLE_ENTRY>::iterator routing_table_iter = m_state.get_routing_table().begin();
+            routing_table_iter != m_state.get_routing_table().end();)
+#endif
+
+      {
+        T_BOOL new_entry_added = false;
+        //cout << "Next tuple for comparing is " << (int)routing_table_iter->first.net_id << "." << (int)routing_table_iter->first.node_id << endl;
+        if(routing_table_iter->r_used == false)
+          {
+            cout << "Inside main for loop" << endl;
+
+            //set_routing_tables_used_field();
+            routing_table_iter->r_used = true;
+
+
+            for(std::vector<T_NETWORK_LINK>::const_iterator router_topo_iter = p_network_topology_graph.router_topology_set.begin();
+                router_topo_iter != p_network_topology_graph.router_topology_set.end(); router_topo_iter++)
+              {
+                /* Checks whether Routing tuple's destination address is matching
+                 * with Router topology tuple's source address */
+                if(routing_table_iter->r_dest_addr == router_topo_iter->src_addr)
+                  {
+                    cout << "Comparing address =" << (int)routing_table_iter->r_dest_addr.net_id << "." << (int)routing_table_iter->r_dest_addr.node_id <<
+                        " to the destination - " << (int)router_topo_iter->dest_addr.net_id << "." << (int)router_topo_iter->dest_addr.node_id<< endl;
+                    /* Creates a new Network link and adds the following
+                     * i) Set out link metric of the new tuple by adding the out link metric value of current Routing tuple and
+                     * Out link  metric value of Router topology tuple
+                     * ii) Set the new distance by adding 1 to distance value of current Routing tuple */
+
+                    cout << " Router Topology metric + table metric = " << router_topo_iter->out_metric <<  "+" << routing_table_iter->r_metric <<endl;
+                    T_NETWORK_LINK new_tuple;
+
+                    new_tuple.out_metric = routing_table_iter->r_metric + router_topo_iter->out_metric;
+                    hop_count = routing_table_iter->r_dist + M_ONE;
+
+                    cout << "Initial metric  =" << (float)new_tuple.out_metric << "and Hop count" << (int)hop_count << endl;
+
+                    /* Finds whether a Routing tuple for the destination is already present
+                     * and its Out link metric is greater or equal to the new metric.
+                     * If true then updates the found Routing tuple with
+                     * next hop address = Next Hop address address of the current Routing Tuple,
+                     * r_metric = New metric,
+                     * r_dist = New Hop count */
+#ifdef COMMENT_SECTION
+                    T_ROUTING_TABLE_ENTRY* routing_tuple = m_state.find_back_up_routing_tuple(router_topo_iter->dest_addr, new_tuple.out_metric);
+#else
+                    T_ROUTING_TABLE_ENTRY* routing_tuple = m_state.find_routing_tuple(router_topo_iter->dest_addr, new_tuple.out_metric);
+#endif
+                    /* If the Routing tuple is not found then,
+                     * Creates a new routing tuple with the following data,
+                     * i) Destination address = Router Topology tuple's destination address,
+                     * ii) next hop address = Next Hop address address of the current Routing Tuple,
+                     * iii) r_metric = New metric,
+                     * iv) r_dist = New Hop count */
+                    if(routing_tuple == NULL)
+                      {
+                        cout << "Added new entry - Dest = " << (int)new_tuple.dest_addr.net_id << "." << (int)new_tuple.dest_addr.net_id << endl;
+                        cout << "Next hop ="  << (int)new_tuple.src_addr.net_id << "." << (int)new_tuple.src_addr.net_id << endl;
+                        new_tuple.dest_addr = router_topo_iter->dest_addr;
+                        new_tuple.src_addr = m_node_address;
+                        m_state.insert_routing_tuple(new_tuple, routing_table_iter->r_next_iface_addr, hop_count);
+#ifdef COMMENT_SECTION
+                        m_state.insert_table_specifically(new_tuple, routing_table_iter->r_next_iface_addr, hop_count,routing_table_iter);
+#endif
+                        new_entry_added = true;
+                        cout<< "New tuple added" << endl;
+                      }
+                    else
+                      {
+                        routing_tuple->r_next_iface_addr = routing_table_iter->r_next_iface_addr;
+                        routing_tuple->r_metric = new_tuple.out_metric;
+                        routing_tuple->r_dist = hop_count;
+                        cout<< "Current tuple updated" << endl;
+
+                      }
+
+                  }
+
+              }
+          }
+        if(new_entry_added != true)
+          {
+            routing_table_iter++;
+          }
+        else
+          {
+#ifdef COMMENT_SECTION
+        	routing_table_iter = m_state.get_back_up_routing_table().begin() + M_ONE;
+#else
+        	routing_table_iter = m_state.get_routing_table().begin() + M_ONE;
+            new_entry_added = false;
+#endif
+          }
+
+      }
+
+    m_state.print_routing_table();
 
   }
 
@@ -1774,6 +1974,9 @@ template <typename T>
   ********************************************************************/
   void C_OLSR::routing_table_computation(void)
   {
+    m_state.fill_tables_for_routing_comp();
+
+
     T_NETWORK_TOPOLOGY_GRAPH network_topology_graph;
 
     /* Calls create_network_topology_graph() function to
@@ -1783,6 +1986,9 @@ template <typename T>
     /* Calls calculate_routing_table() function to calculate
      * the Routing Table*/
     calculate_routing_table(network_topology_graph);
+#ifdef COMMENT_SECTION
+    calculate_back_up_routing_table(network_topology_graph);
+#endif
     cout << "Completed Routing Tale preparation" << endl;
 
   }
@@ -1946,9 +2152,9 @@ int main()
     //Normal_Node_Olsr.routing_table_computation();
 
 	//Normal_Node_Olsr.send_hello();
-	Normal_Node_Olsr.send_tc();
+	//Normal_Node_Olsr.send_tc();
 
-	//Leader_Node_Olsr.send_hello();
+	Normal_Node_Olsr.routing_table_computation();
 
 	return M_ZERO;
 }

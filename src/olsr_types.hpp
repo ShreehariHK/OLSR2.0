@@ -1,24 +1,27 @@
-/*                            Project title
+/*               DEAL MANET Waveform Software Components
  *
  *
- *Source Code Name   :   olsr_types.hpp
+ * Source Code Name        : olsr_types.hpp
+ *
+ * Source Code Part Number : MNTWSC-321-DI-0004
  *       
- *Description        :   To store all the types used in OLSR.
+ * Description             : To store all the types used in OLSR.
  *
- *Subsystem Name     :   OLSR
+ * Subsystem Name          : OLSR
  *       
- *Revision History               
- *---------------------------------------------------------------------------|
- *Version | Change Description               |    Date    |    Changed By    |
- *--------|----------------------------------|------------|------------------|
- *1.0     |Initial Version                   | 14-06-2021 |Shreehari H K     |
- *--------|----------------------------------|------------|------------------|
+ * Revision History
+ * ---------------------------------------------------------------------------|
+ * Version | Change Description               |    Date    |    Changed By    |
+ * --------|----------------------------------|------------|------------------|
+ * 1.0     |Initial Version                   | 14-06-2021 |Shreehari H K     |
+ * --------|----------------------------------|------------|------------------|
  *           
- *                              Copyright statement                            
+ * COPYRIGHT © Defence Electronics Applications Laboratory (DEAL), Raipur Road, Dehradun - 2480017.
  *
+ * PROPRIETARY - This document and the information contained herein is the property of DEAL,
+ * and must not be disclosed, copied, altered or used without written permission.
  *
  */
-
 
 #ifndef OLSR_TYPES_HPP_
 #define OLSR_TYPES_HPP_
@@ -28,6 +31,7 @@
 #include <set>
 #include <vector>
 #include <array>
+#include <algorithm>
 #include "time.h"	        /* Include file for Time functionality */
 #include "olsr_utility.hpp"        /* Include file for basic utilities */
 
@@ -70,7 +74,7 @@ namespace ns_olsr2_0
 #define M_ROUTER_INFO_SIZE 0x6    /* Size of Each router info */
 #define M_INSUFFICIENT_TC_MSG 17  /* 17 bytes are just TC message generic info except topology info */
 
-typedef long long int Time;
+typedef T_UINT64 Time;
 
 /*
  * Status of the next hop route
@@ -282,12 +286,12 @@ typedef struct
 	T_FLOAT l_in_metric;		               /* Incoming data-link metric from 1-hop neighbor node to local node*/
 	T_FLOAT l_out_metric;		               /* Outgoing data-link metric from local node to 1-hop neighbor node */
 	T_BOOL l_mpr_selector;	                   /* True if the 1-hop neighbor selected this local node as flooding MPR */
+	T_UINT8 l_status;                          /* Status of this link */
 	T_NODE_ADDRESS  l_neighbor_iface_addr;     /* The address of that interface of the 1-hop neighbor */
 	Time l_heard_time;		                   /* the validity time of this incoming link */
 	Time l_sym_time;		                   /* Validity time of this symmetric link */
 	Time l_time;			                   /* Validity time of this link */
-	T_UINT8 l_status;                          /* Status of this link */
-}T_LINK_TUPLE;
+	}T_LINK_TUPLE;
 
 /**
  * Holds about information between the local and the 2-hop neighbor node
@@ -310,11 +314,11 @@ typedef struct
  */
 typedef struct
 {
-	T_NODE_ADDRESS n_neighbor_addr;	           /* Address of the 1-hop neighbor */
-	T_FLOAT n_in_metric;	                                /* Neighbor In metric */
-	T_FLOAT n_out_metric;	                                /* Neighbor out metric */
-	U_WILLINGNESS n_willingness;                                  /* bits 0-3 - Flooding Will and bits 4-7 Routing Willingness */
+	T_NODE_ADDRESS n_neighbor_addr;	                        /* Address of the 1-hop neighbor */
+	U_WILLINGNESS n_willingness;                            /* bits 0-3 - Flooding Will and bits 4-7 Routing Willingness */
 	T_BOOL n_symmetric;		                                /* True if the connection is symmetric */
+	T_FLOAT n_in_metric;                                    /* Neighbor In metric */
+	T_FLOAT n_out_metric;                                   /* Neighbor out metric */
 	T_BOOL n_flooding_mpr;	                                /* True if this neighbor is a flooding MPR */
 	T_BOOL n_routing_mpr;		                            /* True if this neighbor is a routing MPR */
 	T_BOOL n_mpr_selector;	                                /* True if this neighbor selected this local node as a Routing MPR */
@@ -340,11 +344,11 @@ typedef struct
  */
 typedef struct
 {
-	T_NODE_ADDRESS tr_from_orig_addr;	                        /* Originator address of the TC message(Routing MPR) */
+	T_NODE_ADDRESS tr_from_orig_addr;	                    /* Originator address of the TC message(Routing MPR) */
 	T_NODE_ADDRESS tr_to_orig_addr;	                        /* Originator Address of the node who is a routing MPR selector of TC message originator*/
-	T_UINT16 tr_seq_number;		                            /* Advertised neighbor sequence number */
+	Time tr_time;                                           /* Validity time of this tuple */
 	T_FLOAT tr_metric;		                                /* Out metric between the TC message originator and its routing MPR  selector*/
-	Time tr_time;			                                /* Validity time of this tuple */
+	T_UINT16 tr_seq_number;                                 /* Advertised neighbor sequence number */
 }T_ROUTER_TOPOLOGY_TUPLE;
 
 /**
@@ -352,12 +356,12 @@ typedef struct
  */
 typedef struct
 {
-	T_NODE_ADDRESS an_orig_addr;	                            /* Originator address of the TC message */
+	T_NODE_ADDRESS an_orig_addr;	                        /* Originator address of the TC message */
 	T_NODE_ADDRESS an_net_addr;	                            /* Attached network address connected to by this TC message generator*/
+	T_FLOAT an_metric;                                      /* Out metric between the TC message originator and the attached network*/
+	Time an_time;                                           /* Validity time of this tuple */
 	T_UINT16 an_seq_number;		                            /* Advertised neighbor sequence number */
 	T_UINT8 an_dist;		                                /* Distance to the attached network */
-	Time an_time;			                                /* Validity time of this tuple */
-	T_FLOAT an_metric;		                                /* Out metric between the TC message originator and the attached network*/
 }T_ATTACHED_NETWORK_TUPLE;
 
 /**
@@ -366,12 +370,20 @@ typedef struct
 typedef struct
 {
 	T_NODE_ADDRESS r_dest_addr;	                            /* Destination Ip address of the node */
-	T_NODE_ADDRESS r_next_iface_addr;                          /* Interface address of the Next node */
-	T_NODE_ADDRESS r_local_iface_addr;                         /* Interface address of the local node */
+	T_NODE_ADDRESS r_next_iface_addr;                       /* Interface address of the Next node */
+	T_FLOAT r_metric;                                       /* Out metric between the local node and the destination node*/
+	T_NODE_ADDRESS r_local_iface_addr;                      /* Interface address of the local node */
 	T_UINT8 r_dist; 		                                /* Distance to the destination node */
-	T_FLOAT r_metric;		                                /* Out metric between the local node and the destination node*/
 	T_BOOL r_used;                                          /* A flag used to check whether this tuple used to findout other destinations */
 }T_ROUTING_TABLE_ENTRY;
+
+/* Checks whether the given address is mathcing with Routing tuplse's destination address */
+static inline bool
+operator == (const T_ROUTING_TABLE_ENTRY var_a, const T_NODE_ADDRESS var_b)
+{
+  return(var_a.r_dest_addr == var_b);
+  //return((var_a.r_dest_addr.net_id == var_b.net_id) and (var_a.r_dest_addr.node_id == var_b.node_id));
+}
 
 /*------------------------------------------------------------------
 3) Neighbor Graph Base
@@ -404,6 +416,7 @@ typedef struct
  */
 typedef struct
 {
+    T_NODE_ADDRESS two_hop_neighb_addr; /* Symmetric 2-Hop neighbor address */
     float d2;                              /* metric between one_hop and two_hop neighbors */
     float d;                               /* d1 + d2 */
 
@@ -416,6 +429,13 @@ operator < (const T_MATRIX& matrix_a, const T_MATRIX& matrix_b)
   return(matrix_a.d < matrix_b.d);
 }
 
+/* Checks whether the given address is mathcing with metrix's address */
+static inline bool
+operator == (const T_MATRIX var_a, const T_NODE_ADDRESS var_b)
+{
+  return(var_a.two_hop_neighb_addr == var_b);
+}
+
 /**
  *holds the information of symmetric 1-hop  neighbors,
  *their willingness , link metric and matrix set
@@ -425,9 +445,9 @@ typedef struct
 {
     T_NODE_ADDRESS one_hop_neighb_addr;         /* Symmetric one_hop neighbor address*/
     U_WILLINGNESS neighb_will;                  /* Neighbor Willingness */
-    float d1;                                   /* metric between current node and one_hop neighbors */
-    std::map<T_NODE_ADDRESS, T_MATRIX> matrix_set;   /* metrics between this one-hop and two-hop neighbors  connected by it*/
     T_UINT8 degree;                             /* The number of 2-Hop nodes connected by this 1-Hop neighbor */
+    float d1;                                   /* metric between current node and one_hop neighbors */
+    std::vector<T_MATRIX> matrix_set;   /* metrics between this one-hop and two-hop neighbors  connected by it*/
 }T_N1;
 
 /* Checks if given 1st address is less than 2nd address */
@@ -482,7 +502,7 @@ typedef struct
 {
     std::vector<T_NETWORK_LINK>  one_hop_set;         /* Network link between current node and its 1-Hop neighbors*/
     std::vector<T_NETWORK_LINK>  router_topology_set; /* Network link other nodes in the network*/
-    //std::vector<T_NETWORK_LINK>  two_hop_set;         /* Network link between current node and its 2-Hop neighbors */
+    //std::vector<T_NETWORK_LINK>  two_hop_set;       /* Network link between current node and its 2-Hop neighbors */
 }T_NETWORK_TOPOLOGY_GRAPH;
 
 /*------------------------------------------------------------------
@@ -495,7 +515,7 @@ typedef struct
 typedef struct
 {
 	E_OLSR_MSG_TYPE rx_type;	                            /* Received message type */
-	T_NODE_ADDRESS rx_orig_addr;	                            /* Originator address of the sender */
+	T_NODE_ADDRESS rx_orig_addr;	                        /* Originator address of the sender */
 	T_UINT16 rx_seq_number;		                            /* Sequence number */
 	Time rx_time;			                                /* Validity time of this tuple */
 }T_RECEIVED_MSG_TUPLE;

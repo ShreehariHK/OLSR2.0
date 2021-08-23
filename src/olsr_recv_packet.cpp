@@ -1,8 +1,26 @@
-/*
- * olsr_recv_packet.cpp
+/*               DEAL MANET Waveform Software Components
  *
- *  Created on: 21-Jul-2021
- *      Author: accord
+ *
+ * Source Code Name        : olsr_recv_packet.cpp
+ *
+ * Source Code Part Number : MNTWSC-321-RI-0004
+ *
+ * Description             : Implements OLSR receive message functionality
+ *
+ * Subsystem Name          : OLSR
+ *
+ * Revision History
+ * ---------------------------------------------------------------------------|
+ * Version | Change Description               |    Date    |    Changed By    |
+ * --------|----------------------------------|------------|------------------|
+ * 1.0     |Initial Version                   | 14-06-2021 | Shreehari H K    |
+ * --------|----------------------------------|------------|------------------|
+ *
+ * COPYRIGHT © Defence Electronics Applications Laboratory (DEAL), Raipur Road, Dehradun - 2480017.
+ *
+ * PROPRIETARY - This document and the information contained herein is the property of DEAL,
+ * and must not be disclosed, copied, altered or used without written permission.
+ *
  */
 
 #include <iostream>
@@ -40,7 +58,7 @@ namespace ns_olsr2_0
     {
         C_MESSAGE_HEADER msg_header;
         cout << "Hello message deserialisation begin" << endl;
-        msg_header.deserialize((E_OLSR_MSG_TYPE)olsr_packet->packet_header.msg_type, olsr_packet->olsr_msg_buffer, start_index, olsr_packet->packet_header.hello_msg_size);
+        msg_header.deserialize(HELLO_MESSAGE, olsr_packet->olsr_msg_buffer, start_index, olsr_packet->packet_header.hello_msg_size);
         olsr_msg_list.push_back(msg_header);
         cout << "Hello message deserialisation end" << endl;
     }
@@ -50,7 +68,7 @@ namespace ns_olsr2_0
         C_MESSAGE_HEADER msg_header;
         cout << "Tc message deserialisation begin" << endl;
         start_index = olsr_packet->packet_header.hello_msg_size;
-        msg_header.deserialize((E_OLSR_MSG_TYPE)olsr_packet->packet_header.msg_type, olsr_packet->olsr_msg_buffer, start_index, olsr_packet->packet_header.tc_msg_size);
+        msg_header.deserialize(TC_MESSAGE, olsr_packet->olsr_msg_buffer, start_index, olsr_packet->packet_header.tc_msg_size);
         olsr_msg_list.push_back(msg_header);
         cout << "Tc message deserialisation end" << endl;
     }
@@ -60,7 +78,7 @@ namespace ns_olsr2_0
         C_MESSAGE_HEADER msg_header;
         cout << "Tc forwarded message deserialisation begin" << endl;
         start_index = olsr_packet->packet_header.hello_msg_size + olsr_packet->packet_header.tc_msg_size;
-        msg_header.deserialize((E_OLSR_MSG_TYPE)olsr_packet->packet_header.msg_type, olsr_packet->olsr_msg_buffer, start_index, olsr_packet->packet_header.tcf_msg_size);
+        msg_header.deserialize(TC_FORWARDED, olsr_packet->olsr_msg_buffer, start_index, olsr_packet->packet_header.tcf_msg_size);
         olsr_msg_list.push_back(msg_header);
         cout << "Hello message deserialisation begin" << endl;
     }
@@ -75,7 +93,8 @@ namespace ns_olsr2_0
 
             /* Checks the validity of the received OLSR message
              * If not valid then skips */
-            if (check_message_validity (message_header) == false)
+            //if (check_message_validity (message_header) == false)
+            if (check_message_validity (message_header) == true)
               {
                 cout << "Message not valid" << endl;
                 continue;
@@ -143,12 +162,16 @@ namespace ns_olsr2_0
   void
   C_OLSR::process_hello (const C_MESSAGE_HEADER& olsr_msg, const T_NODE_ADDRESS& sender_iface, float l_in_metric)
   {
+
+    cout << "Inside process hello" << endl;
     /* If the sender of this message is the same as the originator of this message then
      * proceed further. Return otherwise. */
-    if (sender_iface == olsr_msg.get_originator_address ())
+    //if (sender_iface == olsr_msg.get_originator_address ())
+    if (sender_iface != olsr_msg.get_originator_address ())
       {
         const C_MESSAGE_HEADER::T_HELLO &hello_msg = olsr_msg.get_hello ();
 
+        cout << "Calling link sensing" << endl;
         /* Calls link_sensing() function to sense the link */
         link_sensing(olsr_msg, hello_msg, sender_iface, l_in_metric);
 
@@ -182,93 +205,100 @@ namespace ns_olsr2_0
     T_BOOL link_created = false, link_updated = false;
 
     /* Asserts the validity time of the message */
-    OLSR_ASSERT (message_header.get_validity_time () > cur_time);
+    //OLSR_ASSERT (message_header.get_validity_time () > cur_time);
 
-    /* Finds the link tuple for the given sender address*/
-    T_LINK_TUPLE* link_tuple = m_state.find_link_tuple (sender_iface_addr);
+    if(message_header.get_validity_time () > cur_time)
+    {
+		/* Finds the link tuple for the given sender address*/
+		T_LINK_TUPLE* link_tuple = m_state.find_link_tuple (sender_iface_addr);
 
-    /* If link tuple is not present then creates a new link tuple for that sender */
-    if (link_tuple == NULL)
-      {
-        T_LINK_TUPLE new_link_tuple = create_new_link_tuple (message_header, cur_time, l_in_metric);
+		/* If link tuple is not present then creates a new link tuple for that sender */
+		if (link_tuple == NULL)
+		  {
+			T_LINK_TUPLE new_link_tuple = create_new_link_tuple (message_header, cur_time, l_in_metric);
 
-        link_tuple = &m_state.insert_link_tuple (new_link_tuple);
+			link_tuple = &m_state.insert_link_tuple (new_link_tuple);
 
-        link_created = true;
+			link_created = true;
+			cout << "Link tupple added" << endl;
 
-      }
-    else
-      {
-        link_updated = true;
-      }
-    link_tuple->l_heard_time = cur_time + message_header.get_validity_time ();
+		  }
+		else
+		  {
+			link_updated = true;
+		  }
+		link_tuple->l_heard_time = cur_time + message_header.get_validity_time ();
 
-    for (std::vector<C_MESSAGE_HEADER::T_GENERIC_ADDR_BLOCK>::const_iterator hello_msg_iter = hello_message.neighbor_set.begin ();
-        hello_msg_iter != hello_message.neighbor_set.end (); hello_msg_iter++)
-      {
-        /* Checks the type of the instance and proceed if,
-         * (the instance type is Normal and hello messages' neighbors' unique id is matching
-         * with this node's Node Id) or
-         * (the instance type is Leader and hello messages' neighbors' unique id is matching
-         * with this node's Net Id)*/
-        if (((this->get_instance_type () == NORMAL_NODE_INSTANCE) and (hello_msg_iter->unique_id == m_node_address.node_id))
-            || ((this->get_instance_type () == LEADER_NODE_INSTANCE) and (hello_msg_iter->unique_id == m_node_address.net_id)))
-          {
+		for (std::vector<C_MESSAGE_HEADER::T_GENERIC_ADDR_BLOCK>::const_iterator hello_msg_iter = hello_message.neighbor_set.begin ();
+			hello_msg_iter != hello_message.neighbor_set.end (); hello_msg_iter++)
+		  {
+			/* Checks the type of the instance and proceed if,
+			 * (the instance type is Normal and hello messages' neighbors' unique id is matching
+			 * with this node's Node Id) or
+			 * (the instance type is Leader and hello messages' neighbors' unique id is matching
+			 * with this node's Net Id)*/
+			if (((this->get_instance_type () == NORMAL_NODE_INSTANCE) and (hello_msg_iter->unique_id == m_node_address.node_id))
+				|| ((this->get_instance_type () == LEADER_NODE_INSTANCE) and (hello_msg_iter->unique_id == m_node_address.net_id)))
+			  {
 
-            /* Checks the validity of the neighbor link
-             * If not valid then skips*/
-            if (validate_neighbor_link_type (*hello_msg_iter) == false)
-              {
-                continue;
-              }
+				/* Checks the validity of the neighbor link
+				 * If not valid then skips*/
+				if (validate_neighbor_link_type (*hello_msg_iter) == false)
+				  {
+					continue;
+				  }
 
-            /* If the link between neighbor is Lost then sets the neighbor link to Lost*/
-            if (hello_msg_iter->common_field.link_state.type_fields.link_type == M_LOST_LINK)
-              {
-                link_tuple->l_sym_time = cur_time - M_ONE;
-                link_tuple->l_heard_time = cur_time - M_ONE;
-                link_tuple->l_status = M_LOST;
-                link_tuple->l_out_metric = M_UNKNOWN_VALUE;
-                link_tuple->l_mpr_selector = false;
-                link_updated = true;
-              }
-            /* If the link between neighbor is either Heard or Symmetric then
-             * sets the neighbor link to Symmetric*/
-            else if ((hello_msg_iter->common_field.link_state.type_fields.link_type == M_HEARD_LINK)
-                or (hello_msg_iter->common_field.link_state.type_fields.link_type == M_SYMMETRIC_LINK))
-              {
-                /* Adds the current time to message validity time and adds it to link tuple*/
-                link_tuple->l_sym_time = cur_time + message_header.get_validity_time ();
-                /* Adds the link tuple's symmetric time to message validity time and adds it to the tuple*/
-                link_tuple->l_time = link_tuple->l_sym_time + message_header.get_validity_time ();
-                link_tuple->l_status = M_SYMMETRIC;
-                link_tuple->l_out_metric = hello_msg_iter->metric[0];
-                /* checks if the neighbor has selected this node as a Flooding MPR and
-                 * update the field accordingly */
-                if(((hello_msg_iter->common_field.link_state.type_fields.nbr_type & M_FLOODING_MPR) != M_ZERO) ?
-                    (link_tuple->l_mpr_selector = true):(link_tuple->l_mpr_selector = false))
+				/* If the link between neighbor is Lost then sets the neighbor link to Lost*/
+				if (hello_msg_iter->common_field.link_state.type_fields.link_type == M_LOST_LINK)
+				  {
+					link_tuple->l_sym_time = cur_time - M_ONE;
+					link_tuple->l_heard_time = cur_time - M_ONE;
+					link_tuple->l_status = M_LOST;
+					link_tuple->l_out_metric = M_UNKNOWN_VALUE;
+					link_tuple->l_mpr_selector = false;
+					link_updated = true;
+				  }
+				/* If the link between neighbor is either Heard or Symmetric then
+				 * sets the neighbor link to Symmetric*/
+				else if ((hello_msg_iter->common_field.link_state.type_fields.link_type == M_HEARD_LINK)
+					or (hello_msg_iter->common_field.link_state.type_fields.link_type == M_SYMMETRIC_LINK))
+				  {
+					/* Adds the current time to message validity time and adds it to link tuple*/
+					link_tuple->l_sym_time = cur_time + message_header.get_validity_time ();
+					/* Adds the link tuple's symmetric time to message validity time and adds it to the tuple*/
+					link_tuple->l_time = link_tuple->l_sym_time + message_header.get_validity_time ();
+					link_tuple->l_status = M_SYMMETRIC;
+					link_tuple->l_out_metric = hello_msg_iter->metric[0];
+					/* checks if the neighbor has selected this node as a Flooding MPR and
+					 * update the field accordingly */
+					if(((hello_msg_iter->common_field.link_state.type_fields.nbr_type & M_FLOODING_MPR) != M_ZERO) ?
+						(link_tuple->l_mpr_selector = true):(link_tuple->l_mpr_selector = false))
 
-                link_updated = true;
-              }
-            break;
+					link_updated = true;
+				  }
+				break;
 
-          }
+			  }
 
-      }
+		  }
 
-    /* If the link is updated then calls update_one_hop_neighbor_tuple() to
-     * update the existing 1-hop neighbor corresponding to this link*/
-    if (link_updated == true)
-      {
-        update_one_hop_neighbor_tuple(hello_message, link_tuple);
-      }
+		/* If the link is updated then calls update_one_hop_neighbor_tuple() to
+		 * update the existing 1-hop neighbor corresponding to this link*/
+		if (link_updated == true)
+		  {
+			update_one_hop_neighbor_tuple(hello_message, link_tuple);
+		  }
 
-    /* If the link is created then calls add_one_hop_neighbor_tuple() to
-    * create and add a new 1-hop neighbor corresponding to this link*/
-    if (link_created == true)
-      {
-        add_one_hop_neighbor_tuple (hello_message, link_tuple);
-      }
+		/* If the link is created then calls add_one_hop_neighbor_tuple() to
+		* create and add a new 1-hop neighbor corresponding to this link*/
+		if (link_created == true)
+		  {
+			add_one_hop_neighbor_tuple (hello_message, link_tuple);
+		  }
+
+    }
+
+
 
   }
 

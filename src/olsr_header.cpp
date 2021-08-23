@@ -1,11 +1,13 @@
-/*                        Project title
+/*               DEAL MANET Waveform Software Components
  *
  *
- * Source Code Name   :   olsr_header.cpp
+ * Source Code Name        : olsr_header.cpp
  *
- * Description        :   Implements OLSR Message and its header formation functionality .
+ * Source Code Part Number : MNTWSC-321-RI-0004
  *
- * Subsystem Name     :   OLSR
+ * Description             : To store OLSR message with header.
+ *
+ * Subsystem Name          : OLSR
  *
  * Revision History
  * ---------------------------------------------------------------------------|
@@ -14,8 +16,10 @@
  * 1.0     |Initial Version                   | 14-06-2021 | Shreehari H K    |
  * --------|----------------------------------|------------|------------------|
  *
- *                              Copyright statement
+ * COPYRIGHT © Defence Electronics Applications Laboratory (DEAL), Raipur Road, Dehradun - 2480017.
  *
+ * PROPRIETARY - This document and the information contained herein is the property of DEAL,
+ * and must not be disclosed, copied, altered or used without written permission.
  *
  */
 
@@ -684,11 +688,12 @@ namespace ns_olsr2_0
       this->tc_addr_block.common_id = (T_UINT8)buf[index_value++];
 
       read_u16(&buf[index_value],topology_info_size);
+      std::cout << "topology_info_size = " << topology_info_size << std::endl;
       index_value += M_TWO;
 
       while((topology_info_size - M_SIX) > M_ZERO)
       {
-          for(T_UINT8 topo_iter = (topology_info_size-M_SIX/M_ROUTER_INFO_SIZE); topo_iter > M_ZERO; topo_iter--)
+          for(T_UINT8 topo_iter = ((topology_info_size-M_SIX)/M_ROUTER_INFO_SIZE); topo_iter > M_ZERO; topo_iter--)
           {
               T_GENERIC_ADDR_BLOCK tc_block;
               tc_block.unique_id = (T_UINT8)buf[index_value++];
@@ -699,6 +704,7 @@ namespace ns_olsr2_0
               index_value += M_TWO;
               this->tc_addr_block.network_info.push_back(tc_block);
               topology_info_size -= M_ROUTER_INFO_SIZE;
+              std::cout << "Topo info added = "<< topo_iter << std::endl;
           }
       }
   }
@@ -717,14 +723,11 @@ namespace ns_olsr2_0
       T_UINT16 end_address = 0;
 
       std::cout << "Start address = " << start_address << std::endl;
-      //T_UINT8* index = &Buffer[0];
 
       //index++ = this->m_message_type;
 
       //write_u16(this->m_msg_len, index);
 
-      //buffer[index++] = this->m_originator_address.net_id;
-          //buffer[index++] =this->m_originator_address.node_id
       write_u16((T_UINT16&)this->m_originator_address, &buffer[index]);
       index += M_TWO;
 
@@ -757,7 +760,7 @@ namespace ns_olsr2_0
       }
       end_address = index - start_address;
       std::cout << "End address = " << index << std::endl;
-      std::cout << "hello message size diff = " << end_address << std::endl;
+      //std::cout << "hello message size diff = " << end_address << std::endl;
 
       return end_address;
   }
@@ -784,9 +787,9 @@ namespace ns_olsr2_0
           read_u16(&buffer[index], (T_UINT16&)this->m_originator_address);
           index += M_TWO;
 
-          std::cout << "Message net id = " << this->m_originator_address.net_id << std::endl;
+          std::cout << "Message Originator = " << (int)this->m_originator_address.net_id << "." <<
 
-          std::cout << "Message node id = " << this->m_originator_address.node_id << std::endl;
+          (int)this->m_originator_address.node_id << std::endl;
 
           this->m_time_to_live = buffer[index++];
           std::cout << "Message TTL = " << this->m_time_to_live << std::endl;

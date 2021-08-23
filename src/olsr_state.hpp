@@ -1,11 +1,13 @@
-/*                            Project title
+/*               DEAL MANET Waveform Software Components
  *
  *
- * Source Code Name   :   olsr_state.hpp
- *        
- * Description        :   To store state information of olsr instance .
+ * Source Code Name        : olsr_state.hpp
+ *
+ * Source Code Part Number : MNTWSC-321-DI-0004
+ *
+ * Description             : To store state information of olsr instance .
  * 
- * Subsystem Name     :   OLSR
+ * Subsystem Name          : OLSR
  *        
  * Revision History               
  * ---------------------------------------------------------------------------|
@@ -14,8 +16,10 @@
  * 1.0     |Initial Version                   | 14-06-2021 |Shreehari H L     | 
  * --------|----------------------------------|------------|------------------|
  *           
- *                              Copyright statement                            
+ * COPYRIGHT © Defence Electronics Applications Laboratory (DEAL), Raipur Road, Dehradun - 2480017.
  *
+ * PROPRIETARY - This document and the information contained herein is the property of DEAL,
+ * and must not be disclosed, copied, altered or used without written permission.
  *
  */
 #ifndef OLSR_STATE_HPP_
@@ -48,7 +52,10 @@ namespace ns_olsr2_0
 
     std::array<T_LEADER_TUPLE, M_ONE> m_leader_node;		        /* Leader node information of the network */
 
+#ifdef COMMENT_SECTION
     std::map<T_NODE_ADDRESS, T_ROUTING_TABLE_ENTRY> m_routing_table; /* Routing table of the current OLSR instance */
+#endif
+    std::vector<T_ROUTING_TABLE_ENTRY> m_routing_table;
 
   public:
 
@@ -233,13 +240,22 @@ namespace ns_olsr2_0
     void check_tables_timeout();
 
     /* Creates and adds the new routing tuple to Routing Table*/
-    void insert_routing_tuple(T_NETWORK_LINK new_route_data, const T_NODE_ADDRESS& next_address, T_UINT8 hop_count);
+    void insert_routing_tuple(T_NETWORK_LINK const &new_route_data, const T_NODE_ADDRESS& next_address, T_UINT8 hop_count);
 
     /* Erases the complete Routing Table */
     void erase_routing_table();
 
+    /* Prints the complete routing table*/
+
+    void print_routing_table();
+
+#ifdef COMMENT_SECTION
     /* Gets the complete Routing Table */
-    std::map<T_NODE_ADDRESS, T_ROUTING_TABLE_ENTRY> get_routing_table(void) const;
+    std::map<T_NODE_ADDRESS, T_ROUTING_TABLE_ENTRY>& get_routing_table(void);
+#endif
+
+    /* Gets the complete Routing Table */
+    std::vector<T_ROUTING_TABLE_ENTRY>& get_routing_table(void);
 
     /* Finds the Routing Table with the given distination address */
     T_ROUTING_TABLE_ENTRY* find_routing_tuple(const T_NODE_ADDRESS& dest_addr, float new_metric);
@@ -250,6 +266,25 @@ namespace ns_olsr2_0
     /* Gets the complete routing table */
     void get_network_topology_info(std::vector<T_NETWORK_TOPOLOGY_TUPLE>& topology_table);
 
+    /* Dummy functions
+     * Fill the tables which are necessary for Routing Table Computation */
+
+    void fill_tables_for_routing_comp();
+
+    /* Back up able */
+
+#ifdef COMMENT_SECTION
+    std::vector<T_ROUTING_TABLE_ENTRY>& get_back_up_routing_table(void);
+
+    T_ROUTING_TABLE_ENTRY* find_back_up_routing_tuple(const T_NODE_ADDRESS& dest_addr, float new_metric);
+
+    void erase_back_up_routing_table();
+
+
+    void
+    insert_table_specifically(T_NETWORK_LINK const &new_route_data, const T_NODE_ADDRESS& next_address, T_UINT8 hop_count,
+                                            std::vector<T_ROUTING_TABLE_ENTRY>::iterator  &position);
+#endif
   };
 
 }

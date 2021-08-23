@@ -1,21 +1,25 @@
-/*                            Project title
+/*               DEAL MANET Waveform Software Components
  *
  *
- * Source Code Name   :   olsr_header.hpp
+ * Source Code Name        : olsr_header.hpp
  *
- * Description        :   To store message header information .
+ * Source Code Part Number : MNTWSC-321-DI-0004
  *
- * Subsystem Name     :   OLSR
+ * Description             : To store OLSR message with header.
+ *
+ * Subsystem Name          : OLSR
  *
  * Revision History
  * ---------------------------------------------------------------------------|
  * Version | Change Description               |    Date    |    Changed By    |
  * --------|----------------------------------|------------|------------------|
- * 1.0     |Initial Version                   | 14-06-2021 |Shreehari H K     |
+ * 1.0     |Initial Version                   | 14-06-2021 | Shreehari H K    |
  * --------|----------------------------------|------------|------------------|
  *
- *                              Copyright statement
+ * COPYRIGHT © Defence Electronics Applications Laboratory (DEAL), Raipur Road, Dehradun - 2480017.
  *
+ * PROPRIETARY - This document and the information contained herein is the property of DEAL,
+ * and must not be disclosed, copied, altered or used without written permission.
  *
  */
 

@@ -1,9 +1,28 @@
-/*
- * olsr_send_packet.cpp
+/*               DEAL MANET Waveform Software Components
  *
- *  Created on: 21-Jul-2021
- *      Author: accord
+ *
+ * Source Code Name        : olsr_send_packet.cpp
+ *
+ * Source Code Part Number : MNTWSC-321-RI-0004
+ *
+ * Description             : Implements OLSR send message functionality
+ *
+ * Subsystem Name          : OLSR
+ *
+ * Revision History
+ * ---------------------------------------------------------------------------|
+ * Version | Change Description               |    Date    |    Changed By    |
+ * --------|----------------------------------|------------|------------------|
+ * 1.0     |Initial Version                   | 14-06-2021 | Shreehari H K    |
+ * --------|----------------------------------|------------|------------------|
+ *
+ * COPYRIGHT © Defence Electronics Applications Laboratory (DEAL), Raipur Road, Dehradun - 2480017.
+ *
+ * PROPRIETARY - This document and the information contained herein is the property of DEAL,
+ * and must not be disclosed, copied, altered or used without written permission.
+ *
  */
+
 #include <iostream>
 //#include <cstdint>
 #include <cstring>
@@ -39,6 +58,7 @@ namespace ns_olsr2_0
               olsr_packet.packet_header.hello_msg_size = size_occupied;
 
               itr = olsr_msg_list.erase(itr);
+              cout << "Serialised Hello message size =" << olsr_packet.packet_header.hello_msg_size << endl;
               cout << "Hello message serialisation end" << endl;
               break;
           }
@@ -59,6 +79,7 @@ namespace ns_olsr2_0
               olsr_packet.packet_header.tc_msg_size = size_occupied - olsr_packet.packet_header.hello_msg_size;
 
               itr = olsr_msg_list.erase(itr);
+              cout << "Serialised TC message size =" << olsr_packet.packet_header.tc_msg_size << endl;
               cout << "TC message serialisation end" << endl;
               break;
           }
@@ -165,7 +186,7 @@ namespace ns_olsr2_0
     ********************************************************************/
    void C_OLSR::send_tc(void)
    {
-       this->m_state.fill_tuples();
+       //this->m_state.fill_tuples();
 
        C_MESSAGE_HEADER msg;
 
